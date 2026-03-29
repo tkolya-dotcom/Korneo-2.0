@@ -3157,7 +3157,9 @@
                 // Insert new subscription
                 const { error } = await supabaseClient.from('user_push_subs').insert({
                     user_id: userId,
-                    subscription: { endpoint: token, type }
+                    endpoint: String(token),
+                    p256dh: type || null,
+                    auth: null
                 });
                 
                 if (error) throw error;
@@ -11157,23 +11159,22 @@ showModal('Заявка #' + prId.slice(0, 8), `<div style="margin-bottom:16px">
             // Collect all SKs from the address
             const sks = [];
             
-            // Check for ATSS format (id_sk1, id_sk2, ... id_sk5)
-            for (let i = 1; i <= 5; i++) {
-                const idSk = data[`id_sk${i}`];
-                const naimenovanie = data[`naimenovanie_sk${i}`];
-                const status = data[`status_oborudovaniya${i}`];
-                const tip = data[`tip_sk_po_dogovoru${i}`];
-                
-                if (idSk || naimenovanie) {
-                    sks.push({
-                        id_sk: idSk,
-                        naimenovanie_sk: naimenovanie,
-                        status_oborudovaniya: status,
-                        tip_sk_po_dogovoru: tip,
-                        index: i
-                    });
+            // Check for ATSS format
+            // Первый СК: id_sk / naimenovanie_sk (без цифры)
+            // Остальные: id_sk2..id_sk6
+            const atssSlots = [
+                { id: data.id_sk,  naim: data.naimenovanie_sk,  st: data.status_oborudovaniya,  tip: data.tip_sk_po_dogovoru,  idx: 1 },
+                { id: data.id_sk2, naim: data.naimenovanie_sk2, st: data.status_oborudovaniya2, tip: data.tip_sk_po_dogovoru2, idx: 2 },
+                { id: data.id_sk3, naim: data.naimenovanie_sk3, st: data.status_oborudovaniya3, tip: data.tip_sk_po_dogovoru3, idx: 3 },
+                { id: data.id_sk4, naim: data.naimenovanie_sk4, st: data.status_oborudovaniya4, tip: data.tip_sk_po_dogovoru4, idx: 4 },
+                { id: data.id_sk5, naim: data.naimenovanie_sk5, st: data.status_oborudovaniya5, tip: data.tip_sk_po_dogovoru5, idx: 5 },
+                { id: data.id_sk6, naim: data.naimenovanie_sk6, st: data.status_oborudovaniya6, tip: data.tip_sk_po_dogovoru6, idx: 6 },
+            ];
+            atssSlots.forEach(s => {
+                if (s.id || s.naim) {
+                    sks.push({ id_sk: s.id, naimenovanie_sk: s.naim, status_oborudovaniya: s.st, tip_sk_po_dogovoru: s.tip, index: s.idx });
                 }
-            }
+            });
             
             // Check for КАСИП АЗМ format (id_konditsionera1, id_konditsionera2, ... id_konditsionera5)
             if (sks.length === 0) {
@@ -11197,10 +11198,14 @@ showModal('Заявка #' + prId.slice(0, 8), `<div style="margin-bottom:16px">
             
             // If no SKs found, use first SK fields as before
             if (sks.length === 0) {
-                document.getElementById('instIdSk').value = data.id_sk1 || data.id_konditsionera1 || '';
-                document.getElementById('instNaimenovanieSk').value = data.naimenovanie_sk1 || '';
-                document.getElementById('instStatusOborudovaniya').value = data.status_oborudovaniya1 || data.status_sk1 || '';
-                document.getElementById('instTipSkPoDogovoru').value = data.tip_sk_po_dogovoru1 || '';
+                const _fb_id = document.getElementById('instIdSk');
+                const _fb_naim = document.getElementById('instNaimenovanieSk');
+                const _fb_st = document.getElementById('instStatusOborudovaniya');
+                const _fb_tip = document.getElementById('instTipSkPoDogovoru');
+                if (_fb_id) _fb_id.value = data.id_sk || data.id_sk1 || data.id_konditsionera1 || '';
+                if (_fb_naim) _fb_naim.value = data.naimenovanie_sk || data.naimenovanie_sk1 || '';
+                if (_fb_st) _fb_st.value = data.status_oborudovaniya || data.status_oborudovaniya1 || data.status_sk1 || '';
+                if (_fb_tip) _fb_tip.value = data.tip_sk_po_dogovoru || data.tip_sk_po_dogovoru1 || '';
             } else {
                 // Create dynamic rows for each SK
                 const skContainer = document.getElementById('skRowsContainer');
