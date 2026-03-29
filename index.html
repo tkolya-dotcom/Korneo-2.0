@@ -11408,6 +11408,10 @@ showModal('Заявка #' + prId.slice(0, 8), `<div style="margin-bottom:16px">
             console.log('📦 showCreatePRModal called:', { type, refId, avrForm, pendingAVRData });
             prType = type;
             prRefId = refId;
+
+            // Загружаем материалы и склад
+            const { data: materials } = await supabaseClient.from('materials').select('id, name, category, default_unit').order('category').order('name').limit(5000);
+
             // Сохраняем материалы глобально для autocomplete
             window._prMaterials = (materials || []).map(m => ({
                 id: m.id,
@@ -11415,9 +11419,6 @@ showModal('Заявка #' + prId.slice(0, 8), `<div style="margin-bottom:16px">
                 category: m.category || '',
                 unit: m.default_unit || 'шт'
             }));
-            
-            // Загружаем материалы и склад
-            const { data: materials } = await supabaseClient.from('materials').select('id, name, category, default_unit').order('category').order('name').limit(5000);
             const { data: warehouse } = await supabaseClient.from('warehouse').select('material_id, quantity_available');
             
             // Создаем мапу складских остатков
