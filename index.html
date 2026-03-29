@@ -16738,15 +16738,21 @@ showModal('Заявка #' + prId.slice(0, 8), `<div style="margin-bottom:16px">
             return s === '' || s === '-' ? null : s;
         }
         function atssDate(v) {
+            // Возвращает ISO-строку для PostgreSQL TIMESTAMP
             if (!v) return null;
             if (v instanceof Date) {
+                // Excel дата через cellDates:true — уже Date объект
                 const y = v.getFullYear();
                 const m = String(v.getMonth() + 1).padStart(2, '0');
                 const d = String(v.getDate()).padStart(2, '0');
-                return parseInt(`${y}${m}${d}`, 10);
+                return `${y}-${m}-${d}T00:00:00`;
             }
-            const n = parseInt(String(v).replace(/\D/g, ''), 10);
-            return isNaN(n) ? null : n;
+            // Строка вида "20260112" — парсим вручную
+            const s = String(v).replace(/\D/g, '');
+            if (s.length === 8) {
+                return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}T00:00:00`;
+            }
+            return null;
         }
 
         function atssParseXlsx(arrayBuffer) {
