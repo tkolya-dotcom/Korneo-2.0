@@ -10370,7 +10370,7 @@ showModal('Заявка #' + prId.slice(0, 8), `<div style="margin-bottom:16px">
 
         window.editPRModal = async function(prId) {
             const { data: items } = await supabaseClient.from('purchase_request_items').select('*').eq('request_id', prId);
-            const { data: materials } = await supabaseClient.from('materials').select('*').order('category').order('name');
+            const { data: materials } = await supabaseClient.from('materials').select('id, name, category, default_unit').order('category').order('name').limit(5000);
             const materialOptions = materials?.map(m => `<option value="${m.id}" data-name="${m.name}" data-unit="${m.default_unit}">${m.name} (${m.category})</option>`).join('') || '';
             let itemsHtml = '';
             if (items && items.length > 0) {
@@ -10403,7 +10403,7 @@ showModal('Заявка #' + prId.slice(0, 8), `<div style="margin-bottom:16px">
 
         window.editPR = async function(prId) {
             const { data: items } = await supabaseClient.from('purchase_request_items').select('*').eq('request_id', prId);
-            const { data: materials } = await supabaseClient.from('materials').select('*').order('category').order('name');
+            const { data: materials } = await supabaseClient.from('materials').select('id, name, category, default_unit').order('category').order('name').limit(5000);
             const materialOptions = materials?.map(m => `<option value="${m.id}" data-name="${m.name}" data-unit="${m.default_unit}">${m.name} (${m.category})</option>`).join('') || '';
             let itemsHtml = '';
             if (items && items.length > 0) {
@@ -10418,7 +10418,7 @@ showModal('Заявка #' + prId.slice(0, 8), `<div style="margin-bottom:16px">
         window.addEditPRItem = function() {
             const container = document.getElementById('editPrItems');
             const count = container.children.length + 1;
-            supabaseClient.from('materials').select('*').order('category').order('name').then(({data: materials}) => {
+            supabaseClient.from('materials').select('id, name, category, default_unit').order('category').order('name').limit(5000).then(({data: materials}) => {
                 const materialOptions = materials?.map(m => `<option value="${m.id}" data-name="${m.name}" data-unit="${m.default_unit}">${m.name} (${m.category})</option>`).join('') || '';
                 const div = document.createElement('div');
                 div.innerHTML = `<hr style="margin:16px 0"><div class="form-group"><label>Позиция ${count} - Материал</label><select id="editItem${count}Material" onchange="handleEditMaterialSelect(${count})"><option value="">-- Выберите материал --</option>${materialOptions}</select></div><div class="form-group"><label>Название (если свое)</label><input id="editItem${count}Name" type="text"></div><div style="display:flex;gap:8px"><div class="form-group" style="flex:1"><label>Количество</label><input id="editItem${count}Qty" type="number" value="1"></div><div class="form-group" style="flex:1"><label>Единица</label><select id="editItem${count}Unit"><option value="pcs">шт</option><option value="m">м</option><option value="m2">м2</option><option value="m3">м3</option><option value="l">л</option><option value="kg">кг</option></select></div></div><div class="form-group"><label>Примечание</label><input id="editItem${count}Note" type="text"></div>`;
@@ -11417,7 +11417,7 @@ showModal('Заявка #' + prId.slice(0, 8), `<div style="margin-bottom:16px">
             }));
             
             // Загружаем материалы и склад
-            const { data: materials } = await supabaseClient.from('materials').select('*').order('category').order('name');
+            const { data: materials } = await supabaseClient.from('materials').select('id, name, category, default_unit').order('category').order('name').limit(5000);
             const { data: warehouse } = await supabaseClient.from('warehouse').select('material_id, quantity_available');
             
             // Создаем мапу складских остатков
@@ -11634,23 +11634,8 @@ showModal('Заявка #' + prId.slice(0, 8), `<div style="margin-bottom:16px">
         
         window.addPRItem = async function() {
             const container = document.getElementById('prItems');
-            const count = container.children.length / 4 + 1;
-            
-            // Загружаем материалы и склад
-            const { data: materials } = await supabaseClient.from('materials').select('*').order('category').order('name');
-            const { data: warehouse } = await supabaseClient.from('warehouse').select('material_id, quantity_available');
-            
-            // Создаем мапу складских остатков
-            const warehouseMap = {};
-            (warehouse || []).forEach(w => {
-                warehouseMap[w.material_id] = w.quantity_available;
-            });
-            
-            const materialOptions = (materials || []).map(m => {
-                const warehouseQty = warehouseMap[m.id] || 0;
-                const warehouseInfo = warehouseQty > 0 ? ` | 📦 ${warehouseQty} на складе` : '';
-                return `<option value="${m.id}" data-name="${m.name}" data-unit="${m.default_unit}">${m.name} (${m.category}${warehouseInfo})</option>`;
-            }).join('') || '';
+            const count = container.children.length + 1;
+            // Используем уже загруженные материалы
             
             const div = document.createElement('div');
             div.innerHTML = `
