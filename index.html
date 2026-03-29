@@ -2798,7 +2798,7 @@
     <!-- Auth Screen -->
     <div id="authScreen" class="auth-screen">
         <div class="auth-box">
-            <h2 class="glitch">ПЛАНИРОВЩИК</h2>
+            <h2 class="glitch">КОРНЕО</h2>
             <p class="subtitle">> Управление задачами и монтажами_</p>
             
             <div class="auth-tabs">
@@ -2851,7 +2851,7 @@
     <div id="app" class="container hidden">
         <div class="header">
             <div>
-                <h1 id="headerTitle" class="title-glow">Планировщик</h1>
+                <h1 id="headerTitle" class="title-glow">КОРНЕО</h1>
                 <div id="headerUser" class="header-user"></div>
             </div>
             <div style="display:flex;gap:8px;align-items:center">
@@ -3090,7 +3090,7 @@
                     await registerPushSubscription(registration);
                     // Проверяем существующую подписку и переподписываемся если нужно
                     await checkAndRenewPushSubscription(registration);
-                    showToast('🔔 Push уведомления активированы');
+                    showToast('🔔 Push уведомления включены');
                 } else if (Notification.permission === 'default') {
                     // Показываем объяснение перед запросом
                     showToast('🔔 Разрешите уведомления для получения сообщений', 5000);
@@ -3129,7 +3129,7 @@
                 if (token) {
                     console.log('✅ FCM Token:', token);
                     await savePushSubscription(token, 'fcm');
-                    showToast('🔔 Push уведомления активированы');
+                    showToast('🔔 Push уведомления включены');
                     
                     // Handle foreground messages using modular API
                     if (window.onFirebaseMessage) {
@@ -3949,8 +3949,8 @@
                 // Only show browser notification if current user is being assigned
                 if (String(currentUserId) === String(assigneeId)) {
                     try {
-                        const notification = new Notification('📋 Новое назначение!', {
-                            body: `Вам назначена задача/монтаж от: ${creatorName}`,
+                        const notification = new Notification('📋 Новое сообщение!', {
+                            body: `Вам назначена задача/монтаж/АВР_НРД от: ${creatorName}`,
                             icon: './icon-192.png',
                             badge: './icon-192.png',
                             tag: 'task-assigned-' + Date.now(),
@@ -4137,7 +4137,7 @@
                     console.error('❌ Auth error:', authError);
                     // Handle specific error cases
                     if (authError.message && (authError.message.includes('user_already_exists') || authError.message.includes('already been registered'))) {
-                        throw new Error('Пользователь с таким email уже существует. Попробуйте войти или используйте другой email.');
+                        throw new Error('Пользователь с таким email уже существует. Используйте другой email.');
                     }
                     throw new Error(authError.message);
                 }
@@ -4217,7 +4217,7 @@
                     console.error('Auth signup error:', authError);
                     
                     if (authError.message && authError.message.includes('already been registered')) {
-                        throw new Error('Пользователь с таким email уже существует. Попробуйте войти.');
+                        throw new Error('Пользователь с таким email уже существует.');
                     }
                     if (authError.message && authError.message.includes('rate limit')) {
                         throw new Error('Слишком много попыток. Попробуйте позже.');
@@ -4236,7 +4236,7 @@
                         });
                         
                         if (signInError) {
-                            throw new Error('Не удалось создать пользователя. Попробуйте позже или свяжитесь с администратором.');
+                            throw new Error('Не удалось создать пользователя. Попробуйте позже или свяжитесь с руководителем.');
                         }
                         
                         authData = signInData;
@@ -4871,7 +4871,7 @@
             
             const pullProgress = Math.round(progress * 100);
             indicator.style.top = `${-60 + (progress * 60)}px`;
-            indicator.innerHTML = pullProgress < 100 ? `⟳ Тяните ещё (${pullProgress}%)` : '✓ Отпустите для обновления';
+            indicator.innerHTML = pullProgress < 100 ? `⟳ Тяните ещё (${pullProgress}%)` : '✓ Отпускай Отпускай сломаешь... ';
         }
         
         function hideRefreshIndicator() {
@@ -4891,7 +4891,7 @@
             isRefreshing = true;
             
             console.log('Pull to refresh triggered');
-            showToast('🔄 Обновление данных...');
+            showToast('🔄 Потерпи загружаю...');
             
             try {
                 // Перезагружаем текущую страницу
@@ -6550,7 +6550,7 @@
                             ${task.equipment_type ? `<div><strong>❄️ Тип оборудования:</strong> ${task.equipment_type}</div>` : ''}
                             ${task.equipment_serial_number ? `<div><strong>🔢 Серийный номер:</strong> ${task.equipment_serial_number}</div>` : ''}
                             ${task.equipment_inventory_number ? `<div><strong>📋 Инвентарный номер:</strong> ${task.equipment_inventory_number}</div>` : ''}
-                            ${task.total_equipment_count ? `<div><strong>📊 Количество:</strong> ${task.total_equipment_count} шт</div>` : ''}
+                            ${task.total_equipment_count ? `<div><strong>❄️ Количество СК:</strong> ${task.total_equipment_count} шт</div>` : ''}
                         </div>
                         
                         ${engineersHtml}
@@ -14473,8 +14473,8 @@ showModal('Заявка #' + prId.slice(0, 8), `<div style="margin-bottom:16px">
                 try {
                     // Определяем город из адреса
                     let searchQuery = address;
-                    if (address.toLowerCase().includes('алматы') || address.toLowerCase().includes('алатау')) {
-                        searchQuery = address + ', Казахстан';
+                    if (address.toLowerCase().includes('спб') || address.toLowerCase().includes('спб')) {
+                        searchQuery = address + ', Россия';
                     } else if (address.toLowerCase().includes('санкт-петербург') || address.toLowerCase().includes('спб')) {
                         searchQuery = address + ', Россия';
                     } else {
@@ -14599,7 +14599,7 @@ showModal('Заявка #' + prId.slice(0, 8), `<div style="margin-bottom:16px">
                     confirmed_by: currentUser.id
                 }).eq('id', jobId);
                 if (error) throw error;
-                showToast('Работа подтверждена');
+                showToast('Планирование заведено');
                 
                 // Обновляем UI без полной перезагрузки
                 const chatId = messengerState.selectedChat?.chat_id;
@@ -14748,7 +14748,7 @@ showModal('Заявка #' + prId.slice(0, 8), `<div style="margin-bottom:16px">
                 '    <button onclick="setMapFilter(this,\'done\')">&#128995; Завершены</button>',
                 '    <button onclick="refreshMapJobs()" style="background:#10B981;color:#fff;font-size:12px;">🔄 Обновить</button>',
                 '    <button onclick="toggleArchivedJobs()" id="showArchivedBtn" style="background:#6B7280;color:#fff;font-size:12px;">📁 Архив</button>',
-                '    <button onclick="centerOnUser()" style="margin-left:auto;background:#00D9FF;color:#000;">📍 Моё место</button>',
+                '    <button onclick="centerOnUser()" style="margin-left:auto;background:#00D9FF;color:#000;">📍 Где Я </button>',
                 '  </div>',
                 '  <div id="mapbox-map"></div>',
                 '  <div id="map-update-info" style="position:absolute;bottom:10px;left:10px;background:rgba(0,0,0,0.7);padding:6px 12px;border-radius:6px;font-size:11px;color:#888;z-index:10;"></div>',
@@ -15412,7 +15412,8 @@ showModal('Заявка #' + prId.slice(0, 8), `<div style="margin-bottom:16px">
                     <p style="line-height: 1.8; margin-bottom: 16px;">
                         Это приложение для управления проектами, задачами и монтажами. 
                         Здесь вы можете создавать проекты, назначать задачи исполнителям, 
-                        планировать монтажи и отслеживать прогресс выполнения работ.
+                        планировать монтажи и отслеживать прогресс выполнения работ. 
+                        Учет материалов и инструмента на складе.
                     </p>
                     
                     <p style="line-height: 1.8; color: var(--accent);">
@@ -16169,7 +16170,7 @@ showModal('Заявка #' + prId.slice(0, 8), `<div style="margin-bottom:16px">
                                         (user.role === 'support' ? 'Техподдержка' : 'Исполнитель')));
                         
                         // Format last seen
-                        let lastSeenText = 'был(а) давно';
+                        let lastSeenText = 'давно';
                         if (user.updated_at) {
                             const lastSeen = new Date(user.updated_at);
                             const diffMs = now - lastSeen;
@@ -16225,7 +16226,7 @@ showModal('Заявка #' + prId.slice(0, 8), `<div style="margin-bottom:16px">
         // Ключ: unread_{type}_{id}  => ISO timestamp
 
         function getLastSeen(type, id) {
-            return localStorage.getItem(`unread_${type}_${id}`) || '1970-01-01T00:00:00.000Z';
+            return localStorage.getItem(`unread_${type}_${id}`) || '2026-01-01T00:00:00.000Z';
         }
 
         function markAsRead(type, id) {
@@ -16284,7 +16285,7 @@ showModal('Заявка #' + prId.slice(0, 8), `<div style="margin-bottom:16px">
             if (error) throw error;
             
             if (!comments || comments.length === 0) {
-              commentsList.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">Нет комментариев. Будьте первыми! 💬</p>';
+              commentsList.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">Нет комментариев.💬</p>';
               return;
             }
             
@@ -16469,7 +16470,11 @@ showModal('Заявка #' + prId.slice(0, 8), `<div style="margin-bottom:16px">
           input.selectionEnd = start + newText.indexOf(selectedText || newText.replace(/[\*\`>]/g, '')) + (selectedText.length || newText.length - 4);
         };
         
-        const emojiList = ['👍', '❤️', '😊', '🎉', '🔥', '👀', '✅', '❌', '💡', '📌', '⭐', '🚀', '💬', '📎', '🔔'];
+        const emojiList = ['😀', '😁', '😂', '🤣', '😊', '😎', '😉', '😍', '😘', '🥰', '😜', '🤪', '🤔', '🤨', '😏', '😅', '😇', '🙃', '😴', '🤯',
+ '🤩', '🥳', '😤', '🤗', '😋', '🫠', '😈', '😢', '😭', '😡', '👍', '👎', '👏', '🙌', '🤝', '🙏', '💪', '🫶', '🫡', '👌', 
+ '🤘', '✌️', '🤙', '👊', '🔥', '💥', '🎉', '✨', '🌈', '⭐', '💫', '💡', '⚡', '❤️', '💔', '💞', '💬', '📢', '🚨', 
+ '📌', '📎', '📱', '💻', '🖥️', '🛠️', '🔧', '🧩', '🤖', '🦾', '🎮', '🎧', '🎯', '🧠', '🚀', '☕', '🍕', '🍔', '🍩', 
+ '🍪', '🍎', '🥤', '🍿', '🍫', '🍜', '🐱', '🐶', '🐸', '🐧', '🦄', '🐍', '👻', '💀', '👀', '🤡', '🫨', '🤠'];
         window.toggleEmojiPicker= function() {
           const picker= document.getElementById('emojiPicker');
           if (!picker) return;
@@ -16842,7 +16847,7 @@ showModal('Заявка #' + prId.slice(0, 8), `<div style="margin-bottom:16px">
                                 padding:14px 16px;margin-bottom:20px;font-size:13px;color:var(--text-muted);line-height:1.7">
                         Загрузите <strong style="color:var(--text)">.xlsx</strong> с листом
                         <strong style="color:var(--text)">«1 квартал 2026»</strong>.<br>
-                        Новые площадки добавятся, изменившиеся — обновятся, нетронутые останутся как есть.
+                        Новые площадки добавятся, изменившиеся — обновятся.
                     </div>
                     <div class="form-group">
                         <label>Файл Excel</label>
