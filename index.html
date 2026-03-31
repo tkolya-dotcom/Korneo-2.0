@@ -11718,41 +11718,33 @@ showModal('Заявка #' + prId.slice(0, 8), `<div style="margin-bottom:16px">
         
         window.createPR = async function() {
             const items = [];
-            let i = 1;
-            
-            // Диагностика DOM перед сбором позиций
+
+            // Собираем ВСЕ существующие Material-поля — независимо от нумерации
             const allMaterialInputs = document.querySelectorAll('[id^="prItem"][id$="Material"]');
-            const allSearchInputs   = document.querySelectorAll('[id^="prItem"][id$="Search"]');
-            console.log('📝 createPR called. Material inputs in DOM:', 
-                [...allMaterialInputs].map(el => el.id + '=' + el.value),
-                'Search inputs:', [...allSearchInputs].map(el => el.id + '=' + el.value));
             
-            while (document.getElementById('prItem' + i + 'Material') || document.getElementById('prItem' + i + 'Name')) {
-                const nameInput      = document.getElementById('prItem' + i + 'Name');
-                const materialHidden = document.getElementById('prItem' + i + 'Material');
-                const searchInput    = document.getElementById('prItem' + i + 'Search');
-                const materialId     = materialHidden?.value?.trim() || null;
-                const mats           = window._prMaterials || [];
-                const foundMat       = materialId ? mats.find(m => m.id === materialId) : null;
+            allMaterialInputs.forEach(materialHidden => {
+                // Извлекаем номер из id: prItem5Material → 5
+                const num = materialHidden.id.replace('prItem', '').replace('Material', '');
+                const searchInput = document.getElementById('prItem' + num + 'Search');
+                const nameInput   = document.getElementById('prItem' + num + 'Name');
+                const materialId  = materialHidden.value?.trim() || null;
+                const mats        = window._prMaterials || [];
+                const foundMat    = materialId ? mats.find(m => m.id === materialId) : null;
                 const nameFromSearch = searchInput?.value?.split(' (')[0]?.trim() || '';
                 const name = nameInput?.value?.trim() || (foundMat ? foundMat.name : nameFromSearch);
-                
-                console.log(`📝 Item ${i}: name="${name}" materialId="${materialId}" search="${searchInput?.value}"`);
-                
+
                 if (name || materialId) {
                     items.push({
                         name: name || (foundMat ? foundMat.name : ''),
-                        quantity: parseFloat(document.getElementById('prItem' + i + 'Qty')?.value) || 1,
-                        unit: document.getElementById('prItem' + i + 'Unit')?.value || 'pcs',
-                        note: document.getElementById('prItem' + i + 'Note')?.value || null,
+                        quantity: parseFloat(document.getElementById('prItem' + num + 'Qty')?.value) || 1,
+                        unit: document.getElementById('prItem' + num + 'Unit')?.value || 'pcs',
+                        note: document.getElementById('prItem' + num + 'Note')?.value || null,
                         material_id: materialId || null
                     });
-                } else {
-                    console.log(`⚠️ Item ${i} skipped — no name and no materialId`);
                 }
-                i++;
-            }
-            console.log('📝 Total items collected:', items.length, items);
+            });
+            
+            console.log('📝 createPR: found', allMaterialInputs.length, 'inputs, collected', items.length, 'items');
             
             if (items.length === 0) {
                 showToast('Добавьте хотя бы одну позицию');
