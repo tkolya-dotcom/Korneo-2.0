@@ -11721,26 +11721,31 @@ showModal('Заявка #' + prId.slice(0, 8), `<div style="margin-bottom:16px">
             let i = 1;
             
             while (document.getElementById('prItem' + i + 'Material') || document.getElementById('prItem' + i + 'Name')) {
-                const nameInput   = document.getElementById('prItem' + i + 'Name');
+                const nameInput      = document.getElementById('prItem' + i + 'Name');
                 const materialHidden = document.getElementById('prItem' + i + 'Material');
-                const searchInput = document.getElementById('prItem' + i + 'Search');
-                const materialId  = materialHidden ? materialHidden.value : null;
-                // Имя: вручную → из поиска → из массива по id
-                const mats = window._prMaterials || [];
-                const foundMat = materialId ? mats.find(m => m.id === materialId) : null;
+                const searchInput    = document.getElementById('prItem' + i + 'Search');
+                const materialId     = materialHidden?.value?.trim() || null;
+                const mats           = window._prMaterials || [];
+                const foundMat       = materialId ? mats.find(m => m.id === materialId) : null;
                 const nameFromSearch = searchInput?.value?.split(' (')[0]?.trim() || '';
                 const name = nameInput?.value?.trim() || (foundMat ? foundMat.name : nameFromSearch);
+                
+                console.log(`📝 Item ${i}: name="${name}" materialId="${materialId}" search="${searchInput?.value}"`);
+                
                 if (name || materialId) {
                     items.push({
                         name: name || (foundMat ? foundMat.name : ''),
                         quantity: parseFloat(document.getElementById('prItem' + i + 'Qty')?.value) || 1,
                         unit: document.getElementById('prItem' + i + 'Unit')?.value || 'pcs',
-                        note: document.getElementById('prItem' + i + 'Note')?.value || '',
+                        note: document.getElementById('prItem' + i + 'Note')?.value || null,
                         material_id: materialId || null
                     });
+                } else {
+                    console.log(`⚠️ Item ${i} skipped — no name and no materialId`);
                 }
                 i++;
             }
+            console.log('📝 Total items collected:', items.length, items);
             
             if (items.length === 0) {
                 showToast('Добавьте хотя бы одну позицию');
