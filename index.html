@@ -4316,7 +4316,7 @@
                 if (currentUserProfile?.id) {
                     await updateUserStatus(true);
                     // Сбрасываем зависшие онлайн-статусы других пользователей
-                    supabaseClient.rpc('reset_stale_online_status').catch(() => {});
+                    (async () => { try { await supabaseClient.rpc('reset_stale_online_status'); } catch(e) {} })();
                 }
             }, 15000);
         }
