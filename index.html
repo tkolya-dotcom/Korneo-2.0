@@ -6179,25 +6179,17 @@
                             
                             <div style="border-top:1px solid rgba(255,255,255,0.1);padding-top:16px;margin-bottom:16px">
                                 <h3 style="margin:0 0 16px 0;color:#00D9FF;font-size:16px">❄️ Оборудование</h3>
-                                
-                                <div style="margin-bottom:12px">
-                                    <label style="display:block;margin-bottom:8px;color:#fff;font-weight:500">Тип оборудования</label>
-                                    <input type="text" name="equipment_type" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.05);color:#fff" placeholder="Например: Сплит-система">
-                                </div>
-                                
-                                <div style="margin-bottom:12px">
-                                    <label style="display:block;margin-bottom:8px;color:#fff;font-weight:500">Серийный номер</label>
-                                    <input type="text" name="equipment_serial_number" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.05);color:#fff" placeholder="S/N">
-                                </div>
-                                
-                                <div style="margin-bottom:12px">
-                                    <label style="display:block;margin-bottom:8px;color:#fff;font-weight:500">Инвентарный номер</label>
-                                    <input type="text" name="equipment_inventory_number" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.05);color:#fff" placeholder="Инв. №">
-                                </div>
-                                
-                                <div style="margin-bottom:12px">
-                                    <label style="display:block;margin-bottom:8px;color:#fff;font-weight:500">Количество (шт)</label>
-                                    <input type="number" name="total_equipment_count" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.05);color:#fff" placeholder="1" value="1" min="1">
+                                <p style="font-size:12px;color:var(--text-muted);margin:-8px 0 12px 0">
+                                    Выберите адрес выше — список СК подгрузится автоматически
+                                </p>
+                                <div id="avrEquipmentContainer">
+                                    <!-- Заполняется при выборе адреса или вручную -->
+                                    <button type="button" onclick="addManualSKRow()"
+                                            style="width:100%;padding:10px;border:1px dashed rgba(0,217,255,0.4);border-radius:8px;
+                                                   background:transparent;color:var(--accent);font-size:13px;cursor:pointer">
+                                        ➕ Добавить кондиционер вручную
+                                    </button>
+                                    <div id="avrManualSkRows"></div>
                                 </div>
                             </div>
                             
@@ -6286,26 +6278,47 @@
                             district: a.rayon,
                             source: 'Q2026'
                         })),
-                        ...(atss || []).map(a => ({
-                            id: String(a.id_ploshadki || a.id),
-                            address: a.adres_razmeshcheniya,
-                            site_id: String(a.id_ploshadki || ''),
-                            serial_number: a.servisnyy_id,
-                            sk_names: [a.naimenovanie_sk,  a.naimenovanie_sk2, a.naimenovanie_sk3, a.naimenovanie_sk4, a.naimenovanie_sk5, a.naimenovanie_sk6].filter(Boolean).join(', '),
-                            sk_count: [a.id_sk,  a.id_sk2, a.id_sk3, a.id_sk4, a.id_sk5, a.id_sk6].filter(Boolean).length,
-                            district: a.rayon,
-                            source: 'АТСС'
-                        })),
-                        ...(kasip || []).map(a => ({
-                            id: String(a.id_ploshadki || a.id),
-                            address: a.adres_raspolozheniya,
-                            site_id: String(a.id_ploshadki || ''),
-                            serial_number: a.servisnyy_id,
-                            sk_names: [a.naimenovanie_sk,  a.naimenovanie_sk2, a.naimenovanie_sk3, a.naimenovanie_sk4, a.naimenovanie_sk5, a.naimenovanie_sk6].filter(Boolean).join(', '),
-                            sk_count: [a.id_konditsionera1, a.id_konditsionera2, a.id_konditsionera3, a.id_konditsionera4, a.id_konditsionera5, a.id_konditsionera6].filter(Boolean).length,
-                            district: a.ploshchadka,
-                            source: 'КАСИБ'
-                        }))
+                        ...(atss || []).map(a => {
+                            const skSlots = [
+                                {id: a.id_sk,  name: a.naimenovanie_sk,  serial: a.serial_number,  inventory: a.inventory_number},
+                                {id: a.id_sk2, name: a.naimenovanie_sk2, serial: a.serial_number2, inventory: a.inventory_number2},
+                                {id: a.id_sk3, name: a.naimenovanie_sk3, serial: a.serial_number3, inventory: a.inventory_number3},
+                                {id: a.id_sk4, name: a.naimenovanie_sk4, serial: a.serial_number4, inventory: a.inventory_number4},
+                                {id: a.id_sk5, name: a.naimenovanie_sk5, serial: a.serial_number5, inventory: a.inventory_number5},
+                                {id: a.id_sk6, name: a.naimenovanie_sk6, serial: a.serial_number6, inventory: a.inventory_number6},
+                            ].filter(s => s.id || s.name);
+                            return {
+                                id: String(a.id_ploshadki || a.id),
+                                address: a.adres_razmeshcheniya,
+                                site_id: String(a.id_ploshadki || ''),
+                                serial_number: a.servisnyy_id,
+                                sk_names: skSlots.map(s => s.name).filter(Boolean).join(', '),
+                                sk_count: skSlots.length,
+                                sk_list: skSlots,
+                                district: a.rayon,
+                                source: 'АТСС'
+                            };
+                        }),
+                        ...(kasip || []).map(a => {
+                            const skSlots = [
+                                {id: a.id_konditsionera1, name: a.naimenovanie_sk1, serial: null, inventory: null},
+                                {id: a.id_konditsionera2, name: a.naimenovanie_sk2, serial: null, inventory: null},
+                                {id: a.id_konditsionera3, name: a.naimenovanie_sk3, serial: null, inventory: null},
+                                {id: a.id_konditsionera4, name: a.naimenovanie_sk4, serial: null, inventory: null},
+                                {id: a.id_konditsionera5, name: a.naimenovanie_sk5, serial: null, inventory: null},
+                            ].filter(s => s.id || s.name);
+                            return {
+                                id: String(a.id_ploshadki || a.id),
+                                address: a.adres_raspolozheniya,
+                                site_id: String(a.id_ploshadki || ''),
+                                serial_number: a.servisnyy_id,
+                                sk_names: skSlots.map(s => s.name).filter(Boolean).join(', '),
+                                sk_count: skSlots.length,
+                                sk_list: skSlots,
+                                district: a.ploshchadka,
+                                source: 'КАСИБ'
+                            };
+                        })
                     ].filter(r => r.address);
                     
                     // Удаляем дубликаты по адресу
@@ -6330,7 +6343,7 @@
                     uniqueResults.forEach((r, idx) => {
                         const resultId = `avr-addr-${idx}-${Date.now()}`;
                         html += `
-                            <div id="${resultId}" onclick="selectAVRAddressResult('${r.address}', '${r.id}', '${r.site_id || ''}', '${r.serial_number || ''}', '${r.sk_names || ''}', '${r.district || ''}', '${r.sk_count || 0}')" 
+                            <div id="${resultId}" onclick="selectAVRAddressResult('${r.address}', '${r.id}', '${r.site_id || ''}', '${r.serial_number || ''}', '${r.sk_names || ''}', '${r.district || ''}', '${r.sk_count || 0}', '${btoa(unescape(encodeURIComponent(JSON.stringify(r.sk_list || []))))}')" 
                                  style="padding:12px;cursor:pointer;border-bottom:1px solid var(--border);background:var(--gradient-card);transition:all 0.2s"
                                  onmouseover="this.style.background='rgba(0,217,255,0.15)';this.style.boxShadow='0 0 15px rgba(0,217,255,0.3)'"
                                  onmouseout="this.style.background='var(--gradient-card)';this.style.boxShadow='none'">
@@ -6355,25 +6368,120 @@
             }, 300);
         };
         
-        window.selectAVRAddressResult = function(address, id, siteId, serialNumber, skNames, district, skCount) {
+        window.selectAVRAddressResult = function(address, id, siteId, serialNumber, skNames, district, skCount, skListB64) {
             document.getElementById('addressSearch').value = address;
-            // address_id должен быть UUID, а у нас INTEGER id_ploshadki - оставляем пустым
             document.getElementById('selectedAddressId').value = '';
             document.getElementById('addressSearchResults').innerHTML = '';
-            
-            // Очищаем ручной ввод если выбран адрес из базы
             document.getElementById('manualAddress').value = '';
-            
-            // Показываем выбранную информацию со всеми СК
+
+            // Декодируем список СК
+            let skList = [];
+            try {
+                if (skListB64) skList = JSON.parse(decodeURIComponent(escape(atob(skListB64))));
+            } catch(e) {}
+            window._avrSkList = skList;
+
+            // Показываем информацию об адресе
             document.getElementById('selectedAddressInfo').innerHTML = `
-                <div style="background:rgba(255,255,255,0.95);padding:12px;border-radius:6px;border:1px solid rgba(0,0,0,0.1)">
-                    <div style="color:#000;font-size:13px"><strong>ID площадки:</strong> ${siteId || '-'}</div>
-                    <div style="color:#000;font-size:13px"><strong>Сервисный ID:</strong> ${serialNumber || '-'}</div>
-                    <div style="color:#000;font-size:13px;margin-top:8px"><strong>Кондиционеры (${skCount || 0} шт.):</strong></div>
-                    <div style="color:#000;font-size:12px;margin-top:4px;line-height:1.6">${skNames || 'Нет данных'}</div>
-                    <div style="color:#000;font-size:13px;margin-top:8px"><strong>Район:</strong> ${district || '-'}</div>
+                <div style="background:rgba(0,217,255,0.08);padding:12px;border-radius:8px;border:1px solid rgba(0,217,255,0.2)">
+                    <div style="color:var(--text);font-size:13px"><strong>Сервисный ID:</strong> ${serialNumber || '-'}</div>
+                    <div style="color:var(--text);font-size:13px;margin-top:4px"><strong>Район:</strong> ${district || '-'}</div>
+                    <div style="color:var(--accent);font-size:13px;margin-top:4px"><strong>❄️ СК: ${skCount || 0} шт.</strong></div>
                 </div>
             `;
+
+            // Обновляем блок оборудования
+            renderAVREquipmentBlock(skList);
+        };
+
+        window.renderAVREquipmentBlock = function(skList) {
+            const container = document.getElementById('avrEquipmentContainer');
+            if (!container) return;
+
+            if (!skList || skList.length === 0) {
+                // Нет данных из базы — показываем ручной ввод
+                container.innerHTML = buildManualSKRow(1);
+                return;
+            }
+
+            // Показываем чекбоксы для каждого СК из адреса
+            let html = `
+                <div style="margin-bottom:10px;font-size:13px;color:var(--text-muted)">
+                    Выберите кондиционеры для заявки:
+                </div>
+            `;
+
+            skList.forEach((sk, idx) => {
+                const num = idx + 1;
+                html += `
+                <div class="avr-sk-row" id="avr-sk-row-${num}" style="background:rgba(0,217,255,0.05);border:1px solid rgba(0,217,255,0.2);border-radius:8px;padding:12px;margin-bottom:8px">
+                    <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
+                        <input type="checkbox" name="sk_selected" value="${num}" checked
+                               style="width:18px;height:18px;accent-color:var(--accent);margin-top:2px;flex-shrink:0">
+                        <div style="flex:1">
+                            <div style="font-weight:600;color:var(--accent);font-size:13px;margin-bottom:8px">
+                                СК #${num}: ${sk.name || 'Кондиционер'}
+                            </div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+                                <div>
+                                    <div style="font-size:11px;color:var(--text-muted);margin-bottom:3px">Серийный №</div>
+                                    <input type="text" name="sk_serial_${num}" value="${sk.serial || ''}"
+                                           placeholder="S/N"
+                                           style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:rgba(10,10,15,0.6);color:var(--text);font-size:13px;box-sizing:border-box">
+                                </div>
+                                <div>
+                                    <div style="font-size:11px;color:var(--text-muted);margin-bottom:3px">Инвентарный №</div>
+                                    <input type="text" name="sk_inventory_${num}" value="${sk.inventory || ''}"
+                                           placeholder="Инв. №"
+                                           style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:rgba(10,10,15,0.6);color:var(--text);font-size:13px;box-sizing:border-box">
+                                </div>
+                            </div>
+                        </div>
+                    </label>
+                </div>`;
+            });
+
+            // Кнопка добавить СК вручную
+            html += `
+                <button type="button" onclick="addManualSKRow()"
+                        style="width:100%;padding:8px;border:1px dashed rgba(0,217,255,0.4);border-radius:8px;
+                               background:transparent;color:var(--accent);font-size:13px;cursor:pointer;margin-top:4px">
+                    ➕ Добавить ещё кондиционер
+                </button>
+                <div id="avrManualSkRows"></div>`;
+
+            container.innerHTML = html;
+        };
+
+        // Ручная строка СК (без данных из базы)
+        function buildManualSKRow(num) {
+            return `
+            <div class="avr-sk-row" id="avr-sk-manual-${num}"
+                 style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                    <span style="font-weight:600;color:var(--accent);font-size:13px">❄️ Кондиционер #${num}</span>
+                    ${num > 1 ? `<button type="button" onclick="this.closest('.avr-sk-row').remove()" style="background:transparent;border:none;color:var(--danger);cursor:pointer;font-size:18px">✕</button>` : ''}
+                </div>
+                <div style="margin-bottom:6px">
+                    <input type="text" name="sk_type_${num}" placeholder="Тип / Наименование СК"
+                           style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border);background:rgba(10,10,15,0.6);color:var(--text);font-size:13px;box-sizing:border-box">
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+                    <input type="text" name="sk_serial_${num}" placeholder="Серийный №"
+                           style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border);background:rgba(10,10,15,0.6);color:var(--text);font-size:13px;box-sizing:border-box">
+                    <input type="text" name="sk_inventory_${num}" placeholder="Инвентарный №"
+                           style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border);background:rgba(10,10,15,0.6);color:var(--text);font-size:13px;box-sizing:border-box">
+                </div>
+            </div>`;
+        }
+
+        window._avrManualSkCount = 0;
+        window.addManualSKRow = function() {
+            window._avrManualSkCount++;
+            const skList = window._avrSkList || [];
+            const num = skList.length + window._avrManualSkCount;
+            const container = document.getElementById('avrManualSkRows') || document.getElementById('avrEquipmentContainer');
+            if (container) container.insertAdjacentHTML('beforeend', buildManualSKRow(num));
         };
         
         window.updateManualAddress = function(value) {
@@ -6418,6 +6526,30 @@
             // Проверяем обязательные поля
             const type = formData.get('type');
             const title = formData.get('title');
+
+            // Собираем выбранные СК из блока оборудования
+            const selectedSkNums = [...document.querySelectorAll('input[name="sk_selected"]:checked')].map(cb => cb.value);
+            const allSkRows = [...document.querySelectorAll('.avr-sk-row')];
+            const skData = [];
+            // Из чекбоксов (СК из базы)
+            selectedSkNums.forEach(num => {
+                const skList = window._avrSkList || [];
+                const idx = parseInt(num) - 1;
+                const baseSk = skList[idx] || {};
+                skData.push({
+                    type: baseSk.name || formData.get('sk_type_' + num) || '',
+                    serial: formData.get('sk_serial_' + num) || baseSk.serial || '',
+                    inventory: formData.get('sk_inventory_' + num) || baseSk.inventory || ''
+                });
+            });
+            // Ручные строки (без чекбоксов)
+            document.querySelectorAll('.avr-sk-row:not(:has(input[name="sk_selected"]))').forEach((row, idx) => {
+                const n = row.id.replace('avr-sk-manual-', '');
+                const t = row.querySelector('input[name^="sk_type_"]')?.value || '';
+                const s = row.querySelector('input[name^="sk_serial_"]')?.value || '';
+                const inv = row.querySelector('input[name^="sk_inventory_"]')?.value || '';
+                if (t || s || inv) skData.push({ type: t, serial: s, inventory: inv });
+            });
             const date_from = formData.get('date_from');
             const date_to = formData.get('date_to');
             
@@ -6472,10 +6604,10 @@
                 address_id: addressId && addressId !== '' && addressId !== 'null' ? addressId : null,
                 site_id: addressId && addressId !== '' && addressId !== 'null' ? String(addressId) : null,
                 // Оборудование
-                equipment_type: formData.get('equipment_type') || null,
-                equipment_serial_number: formData.get('equipment_serial_number') || null,
-                equipment_inventory_number: formData.get('equipment_inventory_number') || null,
-                total_equipment_count: parseInt(formData.get('total_equipment_count')) || null,
+                equipment_type: skData.length > 0 ? skData.map(s => s.type).filter(Boolean).join('; ') : null,
+                equipment_serial_number: skData.length > 0 ? skData.map(s => s.serial).filter(Boolean).join('; ') : null,
+                equipment_inventory_number: skData.length > 0 ? skData.map(s => s.inventory).filter(Boolean).join('; ') : null,
+                total_equipment_count: skData.length || null,
                 created_by: currentUserProfile.id,
                 status: 'new' // Новая заявка
             };
