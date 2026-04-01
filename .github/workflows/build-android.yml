@@ -28,10 +28,30 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
-      - name: Build Debug APK
+      - name: Build Debug APK (with version)
         run: |
           cd android
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug \
+            -PversionCode=${{ github.run_number }} \
+            -PversionName="1.${{ github.run_number }}" \
+            --no-daemon
+
+      - name: Write version.json
+        run: |
+          echo '{
+            "versionCode": ${{ github.run_number }},
+            "versionName": "1.${{ github.run_number }}",
+            "downloadUrl": "https://github.com/tkolya-dotcom/Korneo/releases/download/v${{ github.run_number }}/app-debug.apk",
+            "releaseNotes": "Обновление v1.${{ github.run_number }}"
+          }' > version.json
+
+      - name: Commit version.json to repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add version.json
+          git diff --cached --quiet || git commit -m "chore: version ${{ github.run_number }}"
+          git push
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -41,16 +61,15 @@ jobs:
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
-        if: github.ref == 'refs/heads/main'
         with:
           tag_name: "v${{ github.run_number }}"
-          name: "Korneo v${{ github.run_number }}"
+          name: "Korneo v1.${{ github.run_number }}"
           body: |
-            📱 Автосборка APK
+            📱 Автосборка APK v1.${{ github.run_number }}
 
             **Установка:**
             1. Скачай `app-debug.apk`
-            2. На телефоне: Настройки → Безопасность → Разрешить установку из неизвестных источников
-            3. Открой скачанный файл и установи
+            2. Настройки → Безопасность → Разрешить установку из неизвестных источников
+            3. Открой и установи
           files: android/app/build/outputs/apk/debug/app-debug.apk
           token: ${{ secrets.GITHUB_TOKEN }}

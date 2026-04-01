@@ -124,6 +124,9 @@ public class MainActivity extends AppCompatActivity {
 
         webView.loadUrl(APP_URL);
         requestAllPermissions();
+
+        // Проверяем обновления через 3 секунды после старта
+        webView.postDelayed(() -> new UpdateChecker(this).checkForUpdate(), 3000);
     }
 
     // Получаем FCM токен нативно и передаём в WebView
