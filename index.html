@@ -16866,7 +16866,7 @@ showModal('Заявка #' + prId.slice(0, 8), `<div style="margin-bottom:16px">
             const roleName = roleNames[user.role] || user.role;
 
             const avatarHtml = user.avatar_url
-                ? `<img src="${user.avatar_url}" class="profile-avatar" alt="avatar" onerror="this.outerHTML='<div class=\"profile-avatar-letter\">${firstLetter}</div>'">`
+                ? `<img src="${user.avatar_url}" class="profile-avatar" alt="avatar" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<div class=&quot;profile-avatar-letter&quot;>${firstLetter}</div>')">`
                 : `<div class="profile-avatar-letter">${firstLetter}</div>`;
 
             container.innerHTML = `
