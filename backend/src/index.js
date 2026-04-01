@@ -6,11 +6,22 @@ import purchaseRequestsRouter from './routes/purchaseRequests.js';
 import materialsRouter from './routes/materials.js';
 import warehouseRouter from './routes/warehouse.js';
 
-// Чат API - прямые Supabase вызовы
-app.use('/api/chats/:chatId/members', authenticateToken, async (req, res) => {
+// ⚠️ app должен быть объявлен ДО регистрации любых роутов
+const app = express();
+
+app.use(cors());
+app.use(express.json());
+
+// --- Основные роуты ---
+app.use('/api/purchase-requests', purchaseRequestsRouter);
+app.use('/api/materials', materialsRouter);
+app.use('/api/warehouse', warehouseRouter);
+
+// --- Чат API ---
+app.get('/api/chats/:chatId/members', authenticateToken, async (req, res) => {
   try {
     const { chatId } = req.params;
-    
+
     const { data, error } = await supabase
       .from('chat_members')
       .select(`
@@ -32,17 +43,7 @@ app.use('/api/chats/:chatId/members', authenticateToken, async (req, res) => {
   }
 });
 
-const app = express();
-
-app.use(cors());
-app.use(express.json());
-
-app.use('/api/purchase-requests', purchaseRequestsRouter);
-app.use('/api/materials', materialsRouter);
-app.use('/api/warehouse', warehouseRouter);
-
-// ... остальные роуты
+// --- Health check ---
+app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
 export default app;
-
-

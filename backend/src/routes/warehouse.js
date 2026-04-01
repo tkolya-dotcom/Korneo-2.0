@@ -7,7 +7,7 @@ const router = express.Router();
 // Get warehouse stock by material (с остатками)
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const { material_ids } = req.query; // массив ID материалов для заявки
+    const { material_ids } = req.query;
 
     let query = supabase
       .from('warehouse')
@@ -28,7 +28,7 @@ router.get('/', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: error.message });
     }
 
-    // Группируем по material_id (если несколько записей)
+    // Группируем по material_id
     const stockByMaterial = {};
     stock.forEach(item => {
       const matId = item.material_id;
@@ -37,7 +37,7 @@ router.get('/', authenticateToken, async (req, res) => {
           material_id: matId,
           quantity: 0,
           material: item.material,
-          updated_at: item.updated_at
+          updated_at: item.updated_at,
         };
       }
       stockByMaterial[matId].quantity += parseFloat(item.quantity || 0);
@@ -59,16 +59,10 @@ router.get('/overview', authenticateToken, async (req, res) => {
       .from('warehouse')
       .select(`
         material_id,
-        sum(quantity) as total_quantity,
+        quantity,
         material:materials(name, unit, category, min_quantity)
-      `, { count: 'exact', head: false })
-      .eq('quantity', supabase.rpGt(0)) // только положительные остатки
-      .group('material_id')
-      .order('total_quantity', { ascending: false });
-
-    if (search) {
-      query = query.ilike('material.name', `%${search}%`);
-    }
+      `)
+      .order('updated_at', { ascending: false });
 
     if (category) {
       query = query.eq('material.category', category);
@@ -80,7 +74,24 @@ router.get('/overview', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: error.message });
     }
 
-    res.json({ warehouse: data || [] });
+    // Группируем в JS и фильтруем по поиску
+    const byMaterial = {};
+    (data || []).forEach(row => {
+      const id = row.material_id;
+      if (!byMaterial[id]) {
+        byMaterial[id] = { material_id: id, total_quantity: 0, material: row.material };
+      }
+      byMaterial[id].total_quantity += parseFloat(row.quantity || 0);
+    });
+
+    let result = Object.values(byMaterial);
+    if (search) {
+      const q = search.toLowerCase();
+      result = result.filter(r => r.material?.name?.toLowerCase().includes(q));
+    }
+    result.sort((a, b) => b.total_quantity - a.total_quantity);
+
+    res.json({ warehouse: result });
   } catch (error) {
     console.error('Get warehouse overview error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -91,7 +102,9 @@ router.get('/overview', authenticateToken, async (req, res) => {
 router.put('/:material_id/stock', authenticateToken, requireManager, async (req, res) => {
   try {
     const { material_id } = req.params;
-    const { quantity_delta, operation, note, location } = req.body; // delta: +100 или -50, operation: 'receipt'|'usage'
+    const { quantity_delta, operation, note, location } = req.body;
+    // quantity_delta: положительное = приход, отрицательное = списание
+    // operation: 'receipt' | 'usage'
 
     if (quantity_delta === undefined || quantity_delta === null) {
       return res.status(400).json({ error: 'quantity_delta required' });
@@ -102,28 +115,24 @@ router.put('/:material_id/stock', authenticateToken, requireManager, async (req,
       return res.status(400).json({ error: 'Invalid quantity_delta' });
     }
 
-    // Проверка текущего остатка для списания
+    // Получаем текущий остаток для информации в ответе
+    let currentQty = 0;
     if (parsedDelta < 0) {
-      const { data: currentStock } = await supabase
+      const { data: stockRows } = await supabase
         .from('warehouse')
-        .select('sum(quantity)')
-        .eq('material_id', material_id)
-        .single();
-
-      const currentQty = parseFloat(currentStock?.sum || 0);
-      if (currentQty + parsedDelta < 0) {
-        return res.status(400).json({ error: `Недостаточно на складе. Остаток: ${currentQty}` });
-      }
+        .select('quantity')
+        .eq('material_id', material_id);
+      currentQty = (stockRows || []).reduce((s, r) => s + parseFloat(r.quantity || 0), 0);
     }
 
-    // UPSERT warehouse (одна запись на material_id для простоты)
+    // UPSERT warehouse
     const { data: existing, error: fetchError } = await supabase
       .from('warehouse')
       .select('*')
       .eq('material_id', material_id)
       .maybeSingle();
 
-    if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 = no rows
+    if (fetchError && fetchError.code !== 'PGRST116') {
       return res.status(500).json({ error: fetchError.message });
     }
 
@@ -134,7 +143,7 @@ router.put('/:material_id/stock', authenticateToken, requireManager, async (req,
         material_id,
         quantity: parseFloat(existing.quantity || 0) + parsedDelta,
         location: location || existing.location,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       };
       await supabase.from('warehouse').update(newRecord).eq('id', existing.id);
     } else {
@@ -142,7 +151,7 @@ router.put('/:material_id/stock', authenticateToken, requireManager, async (req,
         material_id,
         quantity: parsedDelta,
         location: location || 'Основной склад',
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       };
       const { data: inserted, error: insertError } = await supabase
         .from('warehouse')
@@ -155,23 +164,34 @@ router.put('/:material_id/stock', authenticateToken, requireManager, async (req,
       newRecord.id = inserted.id;
     }
 
-    // Логирование в materials_usage для списания
+    // Логирование в materials_usage при списании
     if (parsedDelta < 0 && operation === 'usage') {
       await supabase.from('materials_usage').insert([{
         material_id,
         quantity: Math.abs(parsedDelta),
         user_id: req.user.id,
-        note: note || `Списание по заявке (${operation})`,
-        used_at: new Date().toISOString()
+        note: note || `Списание (${operation})`,
+        used_at: new Date().toISOString(),
       }]);
     }
 
-    res.json({ 
+    const newQty = newRecord.quantity;
+
+    // Если ушли в минус — триггер БД (handle_negative_stock) уже создал purchase_request.
+    // Возвращаем предупреждение в ответе, чтобы UI мог показать алерт.
+    const response = {
       message: 'Stock updated',
       material_id,
-      new_quantity: newRecord.quantity,
-      delta: parsedDelta
-    });
+      new_quantity: newQty,
+      delta: parsedDelta,
+    };
+
+    if (newQty < 0) {
+      response.warning = `Остаток ушёл в минус (${newQty}). Автоматически создана заявка на закупку.`;
+      response.deficit = Math.abs(newQty);
+    }
+
+    res.json(response);
   } catch (error) {
     console.error('Update stock error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -179,4 +199,3 @@ router.put('/:material_id/stock', authenticateToken, requireManager, async (req,
 });
 
 export default router;
-
