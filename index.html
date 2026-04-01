@@ -3562,18 +3562,30 @@
             try {
                 const userId = currentUserProfile?.id;
                 if (!userId) return;
-                
-                // Remove old subscriptions
+
+                // Для FCM сохраняем токен В двух местах:
+                // 1. users.fcm_token — используется push-send для FCM v1 API
+                // 2. user_push_subs — обратная совместимость
+                if (type === 'fcm') {
+                    const { error: fcmErr } = await supabaseClient
+                        .from('users')
+                        .update({ fcm_token: token, updated_at: new Date().toISOString() })
+                        .eq('id', userId);
+                    if (fcmErr) console.error('Failed to save fcm_token to users:', fcmErr.message);
+                    else console.log('✅ FCM token saved to users.fcm_token');
+                }
+
+                // Удаляем старые записи
                 await supabaseClient.from('user_push_subs').delete().eq('user_id', userId);
-                
-                // Insert new subscription
+
+                // Сохраняем новую
                 const { error } = await supabaseClient.from('user_push_subs').insert({
                     user_id: userId,
                     endpoint: String(token),
                     p256dh: type || null,
                     auth: null
                 });
-                
+
                 if (error) throw error;
                 console.log('✅ Push subscription saved:', type);
             } catch (e) {
@@ -5296,6 +5308,9 @@
                 buttons.push({ id: 'users', label: 'Пользователи', icon: '👥' });
             }
 
+            // Площадки (bi.sats.spb.ru) — все роли
+            buttons.push({ id: 'sites', label: 'Площадки', icon: '📍' });
+
             // Загрузка АТСС — менеджер, зам и поддержка (isElevatedUser)
             if (isManager) {
                 buttons.push({ id: 'atss', label: 'АТСС', icon: '📋' });
@@ -5389,6 +5404,9 @@
                         break;
                     case 'atss':
                         renderAtssUpload(content);
+                        break;
+                    case 'sites':
+                        await renderSites(content);
                         break;
                     default:
                         await renderDashboard(content);
@@ -17226,6 +17244,406 @@ showModal('Заявка #' + prId.slice(0, 8), `<div style="margin-bottom:16px">
             }
 
             input.value = ''; // сбрасываем input
+        };
+
+        // ============================================================
+        // ПЛОЩАДКИ — данные с bi.sats.spb.ru (кэш из Supabase)
+        // ============================================================
+        async function renderSites(container) {
+            const isManager = isElevatedUser();
+            container.innerHTML = `
+                <div style="max-width:700px;margin:0 auto;padding:0 0 60px">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+                        <h2 style="margin:0">📍 Площадки</h2>
+                        ${isManager ? `<button class="btn-cyber-sm" id="syncSitesBtn" onclick="syncSitesNow()">&#x21bb; Синхронизовать</button>` : ''}
+                    </div>
+
+                    <!-- Поиск -->
+                    <div style="position:relative;margin-bottom:20px">
+                        <input type="text" id="siteSearchInput"
+                               placeholder="🔍 Поиск по адресу..."
+                               style="width:100%;box-sizing:border-box;padding:10px 14px;background:rgba(0,212,255,0.05);border:1px solid rgba(0,212,255,0.25);border-radius:8px;color:#fff;font-family:inherit;font-size:14px"
+                               oninput="filterSitesList(this.value)"
+                               autocomplete="off">
+                        <div id="siteDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#0d1520;border:1px solid rgba(0,212,255,0.3);border-top:none;border-radius:0 0 8px 8px;z-index:100;max-height:260px;overflow-y:auto"></div>
+                    </div>
+
+                    <!-- Список площадок (short list до выбора) -->
+                    <div id="sitesListBlock"></div>
+
+                    <!-- Карточка выбранной площадки -->
+                    <div id="siteCardBlock"></div>
+                </div>
+            `;
+            await loadSitesList();
+        }
+
+        // Загрузить список площадок из Supabase
+        async function loadSitesList() {
+            const listBlock = document.getElementById('sitesListBlock');
+            if (!listBlock) return;
+            listBlock.innerHTML = '<div style="color:rgba(255,255,255,0.3);font-size:13px;padding:12px 0">⏳ Загружаем...</div>';
+
+            const { data: sites, error } = await supabaseClient
+                .from('sites_cache')
+                .select('id,emts_id,emts_code,name,address,type,segment,status,district,synced_at')
+                .order('address', { ascending: true });
+
+            if (error) {
+                listBlock.innerHTML = `<div style="color:var(--danger);font-size:13px">Ошибка загрузки: ${error.message}</div>`;
+                return;
+            }
+
+            window._sitesAll = sites || [];
+
+            if (!sites || sites.length === 0) {
+                listBlock.innerHTML = `
+                    <div style="text-align:center;padding:40px 20px;color:rgba(255,255,255,0.35)">
+                        <div style="font-size:32px;margin-bottom:12px">📍</div>
+                        <div style="font-size:14px">Площадки ещё не синхронизированы.</div>
+                        <div style="font-size:12px;margin-top:6px;color:rgba(255,255,255,0.2)">Руководитель может запустить синхронизацию кнопкой выше.</div>
+                    </div>`;
+                return;
+            }
+
+            renderSitesList(sites);
+        }
+
+        function renderSitesList(sites) {
+            const listBlock = document.getElementById('sitesListBlock');
+            if (!listBlock) return;
+            if (!sites || sites.length === 0) {
+                listBlock.innerHTML = '<div style="color:rgba(255,255,255,0.35);font-size:13px;padding:12px 0">Совпадений не найдено</div>';
+                return;
+            }
+            listBlock.innerHTML = sites.slice(0, 30).map(s => {
+                const statusColor = s.status === 'Активирован' ? '#00D4FF' : 'rgba(255,255,255,0.3)';
+                return `
+                <div class="card" style="cursor:pointer;padding:12px 16px;margin-bottom:8px;border-color:rgba(0,212,255,0.12);transition:border-color .2s"
+                     onclick="openSiteCard('${s.id}')"
+                     onmouseenter="this.style.borderColor='rgba(0,212,255,0.35)'"
+                     onmouseleave="this.style.borderColor='rgba(0,212,255,0.12)'">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+                        <div>
+                            <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:3px">${s.address || s.name || '—'}</div>
+                            <div style="font-size:11px;color:rgba(255,255,255,0.4)">
+                                ${s.emts_code ? `<span style="color:#00D4FF">[${s.emts_code}]</span> &bull; ` : ''}
+                                ${s.type || ''} &bull; ${s.segment || ''} &bull; ${s.district || ''}
+                            </div>
+                        </div>
+                        <span style="font-size:10px;color:${statusColor};white-space:nowrap;border:1px solid ${statusColor};padding:2px 7px;border-radius:10px">${s.status || '—'}</span>
+                    </div>
+                </div>`;
+            }).join('') + (sites.length > 30 ? `<div style="text-align:center;font-size:12px;color:rgba(255,255,255,0.3);padding:8px">и ещё ${sites.length - 30} площадок — уточните поиск</div>` : '');
+        }
+
+        // Фильтрация по вводу
+        window.filterSitesList = function(q) {
+            const dropdown = document.getElementById('siteDropdown');
+            const listBlock = document.getElementById('sitesListBlock');
+            if (!window._sitesAll) return;
+
+            const qLow = q.trim().toLowerCase();
+            if (!qLow) {
+                dropdown.style.display = 'none';
+                renderSitesList(window._sitesAll);
+                return;
+            }
+
+            const filtered = window._sitesAll.filter(s =>
+                (s.address || '').toLowerCase().includes(qLow) ||
+                (s.name    || '').toLowerCase().includes(qLow) ||
+                (s.emts_code || '').toLowerCase().includes(qLow) ||
+                (s.district  || '').toLowerCase().includes(qLow)
+            );
+
+            // Показываем dropdown с подсказками
+            if (filtered.length > 0) {
+                dropdown.style.display = 'block';
+                dropdown.innerHTML = filtered.slice(0, 8).map(s =>
+                    `<div onclick="selectSiteFromDropdown('${s.id}')"
+                          style="padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid rgba(0,212,255,0.08)"
+                          onmouseenter="this.style.background='rgba(0,212,255,0.08)'"
+                          onmouseleave="this.style.background=''">` +
+                        `<span style="color:#00D4FF">${s.emts_code ? '[' + s.emts_code + '] ' : ''}</span>` +
+                        `${s.address || s.name}` +
+                        `<span style="color:rgba(255,255,255,0.3);font-size:11px;margin-left:8px">${s.district || ''}</span>` +
+                    `</div>`
+                ).join('');
+            } else {
+                dropdown.style.display = 'block';
+                dropdown.innerHTML = '<div style="padding:10px 14px;font-size:13px;color:rgba(255,255,255,0.35)">Нет совпадений</div>';
+            }
+
+            renderSitesList(filtered);
+        };
+
+        window.selectSiteFromDropdown = function(siteId) {
+            const site = window._sitesAll?.find(s => s.id === siteId);
+            if (site) {
+                const inp = document.getElementById('siteSearchInput');
+                if (inp) inp.value = site.address || site.name;
+            }
+            document.getElementById('siteDropdown').style.display = 'none';
+            openSiteCard(siteId);
+        };
+
+        // Открыть карточку площадки
+        window.openSiteCard = async function(siteId) {
+            const cardBlock = document.getElementById('siteCardBlock');
+            const listBlock = document.getElementById('sitesListBlock');
+            if (!cardBlock) return;
+
+            listBlock.style.display = 'none';
+            cardBlock.innerHTML = '<div style="color:rgba(255,255,255,0.3);font-size:13px;padding:20px 0">⏳ Загружаем...</div>';
+
+            // Загружаем данные площадки и оборудование параллельно
+            const [siteRes, equipRes, heatRes] = await Promise.all([
+                supabaseClient.from('sites_cache').select('*').eq('id', siteId).single(),
+                supabaseClient.from('site_equipment_with_power')
+                    .select('id,name,model,device_type,device_category,cabinet,status,serial_number,inventory_number,effective_power_watts,power_source,power_confidence,power_source_url')
+                    .eq('site_id', siteId)
+                    .order('device_category'),
+                supabaseClient.from('site_heat_summary').select('*').eq('site_id', siteId).single()
+            ]);
+
+            const site  = siteRes.data;
+            const equip = equipRes.data || [];
+            const heat  = heatRes.data;
+
+            if (!site) { cardBlock.innerHTML = '<div style="color:var(--danger)">Площадка не найдена</div>'; return; }
+
+            // Контакты
+            const contacts = (site.contacts || []).map(c =>
+                `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(0,212,255,0.04);border-radius:6px;margin-bottom:6px">
+                    <span style="font-size:18px">📞</span>
+                    <div><div style="font-size:13px;font-weight:600">${c.phone}</div><div style="font-size:11px;color:rgba(255,255,255,0.45)">${c.name}</div></div>
+                </div>`
+            ).join('') || '<div style="color:rgba(255,255,255,0.3);font-size:12px">—</div>';
+
+            // Шкафы
+            const cabinets = (site.cabinets || []).map(c =>
+                `<tr><td style="padding:7px 10px;border-bottom:1px solid rgba(255,255,255,0.06)">${c.name}</td>
+                     <td style="padding:7px 10px;border-bottom:1px solid rgba(255,255,255,0.06);text-align:center">${c.floor}</td>
+                     <td style="padding:7px 10px;border-bottom:1px solid rgba(255,255,255,0.06)">${c.room}</td></tr>`
+            ).join('') || '<tr><td colspan="3" style="padding:10px;color:rgba(255,255,255,0.3);font-size:12px">—</td></tr>';
+
+            // Оборудование: кондиционеры
+            const acUnits = equip.filter(e => e.device_category === 'ac');
+            const acRows  = acUnits.length > 0
+                ? acUnits.map(e =>
+                    `<tr>
+                        <td style="padding:7px 10px;border-bottom:1px solid rgba(255,255,255,0.05);font-size:12px">${e.name}</td>
+                        <td style="padding:7px 10px;border-bottom:1px solid rgba(255,255,255,0.05);font-size:12px;color:rgba(255,255,255,0.5)">${e.model || '—'}</td>
+                        <td style="padding:7px 10px;border-bottom:1px solid rgba(255,255,255,0.05);font-size:11px;color:rgba(255,255,255,0.4)">${e.serial_number || '—'}</td>
+                        <td style="padding:7px 10px;border-bottom:1px solid rgba(255,255,255,0.05);font-size:11px;color:rgba(255,255,255,0.4)">${e.inventory_number || '—'}</td>
+                    </tr>`
+                ).join('')
+                : '<tr><td colspan="4" style="padding:10px;color:rgba(255,255,255,0.3);font-size:12px">Кондиционеры не найдены</td></tr>';
+
+            // Оборудование: остальное (для тепловыделения)
+            const powerEquip = equip.filter(e => e.device_category !== 'ac');
+            const powerRows  = powerEquip.map(e => {
+                const pw = e.effective_power_watts;
+                const src = e.power_source === 'sats' ? '🟢' : e.power_source === 'web' ? '🔵' : e.power_source === 'manual' ? '🟡' : '';
+                const srcTip = e.power_source === 'sats' ? 'Данные с bi.sats.spb.ru' : e.power_source === 'web' ? 'Найдено в интернете' : e.power_source === 'manual' ? 'Введено вручную' : 'Нет данных';
+                const pwCell = pw != null
+                    ? `<span style="color:#00D4FF;font-weight:600">${pw}</span> Вт <span title="${srcTip}">${src}</span>`
+                    : `<button style="background:none;border:1px dashed rgba(255,200,0,0.4);color:rgba(255,200,0,0.7);font-size:10px;padding:2px 7px;border-radius:4px;cursor:pointer;font-family:inherit"
+                              onclick="openManualPowerInput('${e.id}','${(e.model||'').replace(/'/g,'')}')">+ указать</button>`;
+                return `<tr>
+                    <td style="padding:7px 10px;border-bottom:1px solid rgba(255,255,255,0.05);font-size:12px">${e.name}</td>
+                    <td style="padding:7px 10px;border-bottom:1px solid rgba(255,255,255,0.05);font-size:12px;color:rgba(255,255,255,0.5)">${e.model || '—'}</td>
+                    <td style="padding:7px 10px;border-bottom:1px solid rgba(255,255,255,0.05);font-size:11px;color:rgba(255,255,255,0.5)">${e.device_type || '—'}</td>
+                    <td style="padding:7px 10px;border-bottom:1px solid rgba(255,255,255,0.05);font-size:12px">${pwCell}</td>
+                </tr>`;
+            }).join('') || '<tr><td colspan="4" style="padding:10px;color:rgba(255,255,255,0.3);font-size:12px">Оборудование не найдено</td></tr>';
+
+            const statusColor = site.status === 'Активирован' ? '#00D4FF'
+                : site.status?.includes('Дем') ? 'rgba(255,80,80,0.8)' : 'rgba(255,255,255,0.4)';
+
+            const syncedAt = site.synced_at
+                ? new Date(site.synced_at).toLocaleDateString('ru-RU') + ' ' + new Date(site.synced_at).toLocaleTimeString('ru-RU', {hour:'2-digit',minute:'2-digit'})
+                : '—';
+
+            cardBlock.innerHTML = `
+                <!-- Бредкрамб -->
+                <div style="margin-bottom:12px;font-size:12px;color:rgba(255,255,255,0.4)">
+                    <span style="cursor:pointer;color:rgba(0,212,255,0.6)" onclick="document.getElementById('siteCardBlock').innerHTML='';document.getElementById('sitesListBlock').style.display='';">← Назад</span>
+                    &nbsp;/&nbsp; ${site.address || site.name}
+                </div>
+
+                <!-- Заголовок -->
+                <div class="card" style="margin-bottom:14px;padding:16px">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
+                        <div>
+                            <div style="font-size:15px;font-weight:700;color:#00D4FF;margin-bottom:4px">
+                                ${site.emts_code ? `[${site.emts_code}]` : ''} ${site.address || site.name}
+                            </div>
+                            <div style="font-size:11px;color:rgba(255,255,255,0.4)">
+                                ID: ${site.emts_id} &bull; Тип: ${site.type||'—'} &bull; Сегмент: ${site.segment||'—'} &bull; Район: ${site.district||'—'}
+                            </div>
+                        </div>
+                        <span style="font-size:10px;color:${statusColor};border:1px solid ${statusColor};padding:3px 9px;border-radius:12px;white-space:nowrap">${site.status||'—'}</span>
+                    </div>
+                </div>
+
+                <!-- Основная информация -->
+                <div class="card" style="margin-bottom:14px;padding:16px">
+                    <div style="color:#00D4FF;font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">Основная информация</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                        ${[['Тип',site.type],['Сегмент',site.segment],['Статус',site.status],['Район',site.district],['Подключение',site.connection_type],['Ввод в экспл.',site.commissioned_at ? new Date(site.commissioned_at).toLocaleDateString('ru-RU') : '—']].map(([k,v]) =>
+                            `<div><div style="font-size:10px;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:.05em">${k}</div><div style="font-size:13px;margin-top:2px">${v||'—'}</div></div>`
+                        ).join('')}
+                    </div>
+                    <div style="font-size:10px;color:rgba(255,255,255,0.2);margin-top:12px">Синхронизировано: ${syncedAt}</div>
+                </div>
+
+                <!-- Контакты -->
+                <div class="card" style="margin-bottom:14px;padding:16px">
+                    <div style="color:#00D4FF;font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">Контакты</div>
+                    ${contacts}
+                </div>
+
+                <!-- Расположение шкафов -->
+                <div class="card" style="margin-bottom:14px;padding:16px">
+                    <div style="color:#00D4FF;font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">Расположение шкафов</div>
+                    <div style="overflow-x:auto">
+                        <table style="width:100%;border-collapse:collapse;font-size:12px">
+                            <thead><tr style="color:rgba(0,212,255,0.6);font-size:10px;text-transform:uppercase">
+                                <th style="text-align:left;padding:6px 10px">Шкаф</th>
+                                <th style="text-align:center;padding:6px 10px">Этаж</th>
+                                <th style="text-align:left;padding:6px 10px">Помещение</th>
+                            </tr></thead>
+                            <tbody>${cabinets}</tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Тепловыделение -->
+                <div class="card" style="margin-bottom:14px;padding:16px">
+                    <div style="color:#00D4FF;font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px">Тепловыделение оборудования</div>
+                    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
+                        <div style="background:rgba(0,212,255,0.06);border:1px solid rgba(0,212,255,0.15);border-radius:8px;padding:12px;text-align:center">
+                            <div style="font-size:22px;font-weight:700;color:#00D4FF">${heat?.total_power_watts ?? 0}</div>
+                            <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:3px">Вт (общая)</div>
+                        </div>
+                        <div style="background:rgba(0,212,255,0.06);border:1px solid rgba(0,212,255,0.15);border-radius:8px;padding:12px;text-align:center">
+                            <div style="font-size:22px;font-weight:700;color:#00D4FF">${heat?.heat_kcal_per_hour ?? 0}</div>
+                            <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:3px">ккал/ч</div>
+                        </div>
+                        <div style="background:rgba(0,212,255,0.06);border:1px solid rgba(0,212,255,0.15);border-radius:8px;padding:12px;text-align:center">
+                            <div style="font-size:22px;font-weight:700;color:#00D4FF">${heat?.heat_kw ?? 0}</div>
+                            <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:3px">кВт</div>
+                        </div>
+                    </div>
+                    <div style="font-size:10px;color:rgba(255,255,255,0.25);margin-bottom:12px">
+                        🟢 bi.sats.spb.ru &nbsp;🔵 интернет &nbsp;🟡 вручную &nbsp;— нет данных
+                        &nbsp;&bull;&nbsp; Кондиционеры не включаются
+                    </div>
+                    <div style="overflow-x:auto">
+                        <table style="width:100%;border-collapse:collapse;font-size:12px">
+                            <thead><tr style="color:rgba(0,212,255,0.6);font-size:10px;text-transform:uppercase">
+                                <th style="text-align:left;padding:6px 10px">Устройство</th>
+                                <th style="text-align:left;padding:6px 10px">Модель</th>
+                                <th style="text-align:left;padding:6px 10px">Тип</th>
+                                <th style="text-align:left;padding:6px 10px">Мощность</th>
+                            </tr></thead>
+                            <tbody>${powerRows}</tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Кондиционеры -->
+                <div class="card" style="margin-bottom:14px;padding:16px">
+                    <div style="color:#00D4FF;font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">Кондиционеры <span style="color:rgba(255,255,255,0.3);font-weight:400">(${acUnits.length})</span></div>
+                    <div style="overflow-x:auto">
+                        <table style="width:100%;border-collapse:collapse;font-size:12px">
+                            <thead><tr style="color:rgba(0,212,255,0.6);font-size:10px;text-transform:uppercase">
+                                <th style="text-align:left;padding:6px 10px">Название</th>
+                                <th style="text-align:left;padding:6px 10px">Модель</th>
+                                <th style="text-align:left;padding:6px 10px">Серийный №</th>
+                                <th style="text-align:left;padding:6px 10px">Инв. №</th>
+                            </tr></thead>
+                            <tbody>${acRows}</tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        };
+
+        // Ручной ввод мощности (для manager+)
+        window.openManualPowerInput = function(equipId, model) {
+            if (!isElevatedUser()) { showToast('Только руководитель может указать мощность'); return; }
+            const modal = document.createElement('div');
+            modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px';
+            modal.innerHTML = `
+                <div style="background:#0d1520;border:1px solid rgba(0,212,255,0.3);border-radius:12px;padding:24px;max-width:340px;width:100%">
+                    <h3 style="margin:0 0 6px;font-size:15px">Указать мощность</h3>
+                    <div style="font-size:12px;color:rgba(255,255,255,0.4);margin-bottom:16px">${model}</div>
+                    <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:6px">Мощность, Вт</div>
+                    <input type="number" id="manualPowerWatts" min="0" step="1" placeholder="напр. 43"
+                           style="width:100%;box-sizing:border-box;padding:9px 12px;background:rgba(0,212,255,0.06);border:1px solid rgba(0,212,255,0.25);border-radius:6px;color:#fff;font-family:inherit;font-size:14px;margin-bottom:12px">
+                    <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-bottom:14px">Значение будет применено ко всем устройствам с моделью <b>${model}</b>.</div>
+                    <div style="display:flex;gap:10px">
+                        <button onclick="this.closest('div[style*=fixed]').remove()"
+                                style="flex:1;padding:9px;background:none;border:1px solid rgba(255,255,255,0.2);border-radius:6px;color:rgba(255,255,255,0.5);cursor:pointer;font-family:inherit">Отмена</button>
+                        <button onclick="saveManualPower('${model}',this)"
+                                style="flex:1;padding:9px;background:#00D4FF;border:none;border-radius:6px;color:#000;font-weight:700;cursor:pointer;font-family:inherit">Сохранить</button>
+                    </div>
+                </div>`;
+            document.body.appendChild(modal);
+        };
+
+        window.saveManualPower = async function(model, btn) {
+            const watts = parseFloat(document.getElementById('manualPowerWatts')?.value);
+            if (!watts || watts <= 0) { showToast('Введите мощность'); return; }
+            btn.disabled = true; btn.textContent = 'Сохраняю…';
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                const res = await fetch(window.SUPABASE_CONFIG.url + '/functions/v1/lookup-power', {
+                    method: 'PATCH',
+                    headers: { 'Authorization': 'Bearer ' + session.access_token, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ model, power_watts: watts })
+                });
+                const json = await res.json();
+                if (!res.ok) throw new Error(json.error || 'Ошибка');
+                showToast('✅ Мощность сохранена');
+                btn.closest('div[style*=fixed]').remove();
+                // Обновляем карточку
+                const siteId = document.getElementById('siteCardBlock')?.dataset?.siteId;
+                if (siteId) openSiteCard(siteId);
+            } catch(e) {
+                showToast('Ошибка: ' + e.message);
+                btn.disabled = false; btn.textContent = 'Сохранить';
+            }
+        };
+
+        // Синхронизация площадок вручную
+        window.syncSitesNow = async function() {
+            const btn = document.getElementById('syncSitesBtn');
+            if (btn) { btn.disabled = true; btn.textContent = '⏳ Синхронизация...'; }
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                const res = await fetch(window.SUPABASE_CONFIG.url + '/functions/v1/sync-sites', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + session.access_token, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                const json = await res.json();
+                if (!res.ok) throw new Error(json.error || 'Ошибка');
+                const errors = (json.results || []).filter(r => r.status === 'error');
+                if (errors.length > 0) {
+                    showToast(`Ошибка при синхронизации ${errors.length} площадок`);
+                } else {
+                    showToast(`✅ Синхронизировано ${json.synced ?? 0} площадок`);
+                }
+                await loadSitesList();
+            } catch(e) {
+                showToast('Ошибка: ' + e.message);
+            } finally {
+                if (btn) { btn.disabled = false; btn.textContent = '↻ Синхронизовать'; }
+            }
         };
 
         async function renderInfo(content) {
