@@ -126,10 +126,7 @@ public class MainActivity extends AppCompatActivity {
 
         webView.loadUrl(APP_URL);
         requestAllPermissions();
-
-        // Проверяем обновления через 5 секунд после старта (Handler надёжнее чем webView.postDelayed)
-        new Handler(Looper.getMainLooper()).postDelayed(
-            () -> new UpdateChecker(this).checkForUpdate(), 5000);
+        // UpdateChecker запускается из onResume
     }
 
     // Получаем FCM токен нативно и передаём в WebView
@@ -201,6 +198,18 @@ public class MainActivity extends AppCompatActivity {
         else super.onBackPressed();
     }
 
-    @Override protected void onResume() { super.onResume(); if (webView != null) webView.onResume(); }
+    private boolean updateCheckedThisSession = false;
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (webView != null) webView.onResume();
+        // Check for update once per session (first resume after cold start)
+        if (!updateCheckedThisSession) {
+            updateCheckedThisSession = true;
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
+                () -> new UpdateChecker(this).checkForUpdate(), 3000);
+        }
+    }
     @Override protected void onPause()  { super.onPause();  if (webView != null) webView.onPause(); }
 }

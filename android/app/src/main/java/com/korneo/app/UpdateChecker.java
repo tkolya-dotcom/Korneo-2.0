@@ -52,13 +52,19 @@ public class UpdateChecker {
 
                 if (remoteCode > currentCode) {
                     Log.d(TAG, "Update available: " + remoteName + " URL: " + downloadUrl);
-                    activity.runOnUiThread(() ->
-                        showUpdateDialog(remoteName, downloadUrl, notes));
+                    activity.runOnUiThread(() -> {
+                        // Guard against destroyed activity
+                        if (activity.isFinishing() || activity.isDestroyed()) {
+                            Log.w(TAG, "Activity is finishing, skipping dialog");
+                            return;
+                        }
+                        showUpdateDialog(remoteName, downloadUrl, notes);
+                    });
                 } else {
                     Log.d(TAG, "App is up to date (" + currentCode + " >= " + remoteCode + ")");
                 }
             } catch (Exception e) {
-                Log.e(TAG, "Update check failed", e);
+                Log.e(TAG, "Update check failed: " + e.getMessage(), e);
             }
         }).start();
     }
@@ -88,10 +94,14 @@ public class UpdateChecker {
         try {
             URL url = new URL(VERSION_URL);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setConnectTimeout(5000);
-            conn.setReadTimeout(5000);
+            conn.setConnectTimeout(10000);
+            conn.setReadTimeout(10000);
             conn.setRequestMethod("GET");
-            if (conn.getResponseCode() != 200) return null;
+            conn.setRequestProperty("Cache-Control", "no-cache");
+            conn.setUseCaches(false);
+            int code = conn.getResponseCode();
+            Log.d(TAG, "version.json HTTP response: " + code);
+            if (code != 200) return null;
 
             BufferedReader reader = new BufferedReader(
                 new InputStreamReader(conn.getInputStream()));

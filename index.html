@@ -4231,39 +4231,30 @@
                     return;
                 }
                 
-                // Send notification via Supabase Edge Function
-                const EDGE_FUNCTION_URL = 'https://planner-web-4fec7.supabase.co/functions/v1/fcm-send';
+                // Send via push-send edge function (works for both FCM and Web Push)
+                const { data: { session: notifSession } } = await supabaseClient.auth.getSession();
+                const notifToken = notifSession?.access_token || localStorage.getItem('token');
                 
-                const response = await fetch(EDGE_FUNCTION_URL, {
+                const response = await fetch(`${SUPABASE_URL}/functions/v1/push-send`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                        'Authorization': `Bearer ${notifToken}`
                     },
                     body: JSON.stringify({
-                        user_id: userId,
-                        title: title,
-                        body: body,
-                        data: {
-                            type: 'task_assigned',
-                            user_id: userId
-                        }
+                        target_user_id: userId,
+                        sender_name: title,
+                        text: body
                     })
                 });
                 
                 const result = await response.json();
-                
-                if (result.success) {
-                    console.log('✅ FCM notification sent via Edge Function');
+                if (result.sent > 0) {
+                    console.log('✅ Push notification sent:', result.sent);
                 } else {
-                    console.error('❌ FCM error:', result.error);
-                    // Fallback to native notification
+                    console.warn('⚠️ Push sent=0:', result);
                     if ('Notification' in window && Notification.permission === 'granted') {
-                        new Notification(title, {
-                            body: body,
-                            icon: './icon-192.png',
-                            badge: './icon-192.png'
-                        });
+                        new Notification(title, { body, icon: './icon-192.png' });
                     }
                 }
             } catch (error) {
