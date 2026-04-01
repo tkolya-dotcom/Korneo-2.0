@@ -3316,6 +3316,52 @@
             }
         }
         
+
+        // Сохраняет нативный FCM токен (вызывается из Android через JS bridge)
+        window.saveNativeFCMToken = async function(token) {
+            console.log('📱 Native FCM token received from Android:', token.substring(0, 20) + '...');
+            if (!token) return;
+            try {
+                const userId = currentUserProfile?.id;
+                if (!userId) {
+                    // Пользователь ещё не авторизован — сохраним токен и попробуем позже
+                    window._pendingFCMToken = token;
+                    console.log('📱 User not ready yet, token saved for later');
+                    return;
+                }
+                // Сохраняем в users.fcm_token
+                const { error } = await supabaseClient
+                    .from('users')
+                    .update({ fcm_token: token, updated_at: new Date().toISOString() })
+                    .eq('id', userId);
+                if (error) {
+                    console.error('📱 Failed to save FCM token:', error.message);
+                } else {
+                    console.log('📱 ✅ FCM token saved to users table');
+                }
+                // Также сохраняем в user_push_subs для совместимости
+                await supabaseClient.from('user_push_subs').delete().eq('user_id', userId);
+                await supabaseClient.from('user_push_subs').insert({
+                    user_id: userId,
+                    endpoint: token,
+                    p256dh: 'fcm',
+                    auth: null
+                });
+            } catch(e) {
+                console.error('📱 saveNativeFCMToken error:', e);
+            }
+        };
+
+        // При авторизации — если есть отложенный токен, сохраняем его
+        window._savePendingFCMToken = async function() {
+            if (window._pendingFCMToken || window._nativeFCMToken) {
+                const token = window._pendingFCMToken || window._nativeFCMToken;
+                console.log('📱 Saving pending FCM token after auth...');
+                await window.saveNativeFCMToken(token);
+                window._pendingFCMToken = null;
+            }
+        };
+
         // ============================================================
         // BACKGROUND LOCATION TRACKING (9:00 - 18:00)
         // ============================================================
@@ -4609,6 +4655,8 @@
                 };
                 
                 console.log('User loaded:', currentUserProfile.name);
+                // Если есть нативный FCM токен — сохраняем
+                if (window._savePendingFCMToken) window._savePendingFCMToken();
             } catch (error) {
                 console.error('Error loading user profile:', error);
                 currentUser = null;
