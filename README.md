@@ -4,7 +4,7 @@
 
 ## 🌐 Демо
 
-**GitHub Pages:** [https://tkolya-dotcom.github.io/task-manager-app/](https://tkolya-dotcom.github.io/task-manager-app/)
+**GitHub Pages:** [https://tkolya-dotcom.github.io/task-manager-app/](https://github.com/tkolya-dotcom/Korneo)
 
 ---
 
