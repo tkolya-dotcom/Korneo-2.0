@@ -60,27 +60,29 @@ jobs:
         working-directory: apps/mobile
         run: |
           sed -i 's/kotlinVersion = .*/kotlinVersion = "1.9.25"/' android/build.gradle || true
-          echo "Current kotlinVersion:"
           grep 'kotlinVersion' android/build.gradle || true
 
       - name: Patch PermissionsService.kt (fix null-safety errors)
         run: |
-          FILE=$(find apps/mobile/node_modules/expo-modules-core -name "PermissionsService.kt" 2>/dev/null | head -1)
+          # Search EVERYWHERE for PermissionsService.kt (it may be in root node_modules due to hoisting)
+          FILE=$(find . -path "*/expo-modules-core/android/src/main/java/expo/modules/adapters/react/permissions/PermissionsService.kt" 2>/dev/null | head -1)
+          if [ -z "$FILE" ]; then
+            FILE=$(find . -name "PermissionsService.kt" 2>/dev/null | head -1)
+          fi
           if [ -n "$FILE" ]; then
             echo "Found: $FILE"
-            # Fix line: parseNativeResult(receivePermissions, grantResults)
-            sed -i 's/parseNativeResult(receivePermissions, grantResults)/parseNativeResult(receivePermissions ?: emptyArray(), grantResults)/g' "$FILE"
-            # Fix any other nullable receiver calls (add ?: emptyArray() for array params)
             sed -i 's/grantResults\.forEach/grantResults?.forEach/g' "$FILE"
-            sed -i 's/grantResults\.map/grantResults?.map/g' "$FILE"
+            sed -i 's/grantResults\.map{/grantResults?.map{/g' "$FILE"
+            sed -i 's/grantResults\.map {/grantResults?.map {/g' "$FILE"
             sed -i 's/grantResults\.size/grantResults?.size ?: 0/g' "$FILE"
             sed -i 's/grantResults\.isEmpty/grantResults?.isEmpty/g' "$FILE"
-            echo "Patches applied"
-            echo "--- Line 160-175 of patched file:"
+            sed -i 's/parseNativeResult(receivePermissions, grantResults)/parseNativeResult(receivePermissions ?: emptyArray(), grantResults)/g' "$FILE"
+            echo "All patches applied"
+            echo "--- Line 160-175:"
             sed -n '160,175p' "$FILE"
           else
-            echo "PermissionsService.kt not found - listing expo-modules-core:"
-            find apps/mobile/node_modules/expo-modules-core -name "*.kt" 2>/dev/null | head -20
+            echo "ERROR: PermissionsService.kt not found anywhere!"
+            find . -name "*.kt" 2>/dev/null | grep -i permission | head -10
           fi
 
       - name: Make gradlew executable
