@@ -52,14 +52,14 @@ jobs:
         env:
           NODE_ENV: production
 
-      - name: Patch PermissionsService.kt (fix null-safety bug in expo-modules-core 1.12.26)
+      - name: Patch PermissionsService.kt (fix null-safety bug)
         run: |
           FILE=$(find node_modules -name "PermissionsService.kt" 2>/dev/null | head -1)
           if [ -n "$FILE" ]; then
             echo "Found: $FILE"
-            sed -n '160,172p' "$FILE"
-            sed -i 's/parseNativeResult(receivePermissions, grantResults)/parseNativeResult(receivePermissions, grantResults ?: IntArray(0))/g' "$FILE"
-            echo "Patched"
+            sed -i 's|parseNativeResult(receivePermissions, grantResults)|parseNativeResult(receivePermissions ?: emptyArray(), grantResults)|g' "$FILE"
+            echo "Patch applied"
+            grep -n 'receivePermissions' "$FILE"
           else
             echo "PermissionsService.kt not found"
           fi
