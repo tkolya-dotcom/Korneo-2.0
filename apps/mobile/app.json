@@ -13,11 +13,22 @@
     },
     "plugins": [
       "expo-router",
-      ["expo-splash-screen", {
-        "image": "./assets/splash.png",
-        "resizeMode": "contain",
-        "backgroundColor": "#0f172a"
-      }]
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#0f172a"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "kotlinVersion": "1.9.25"
+          }
+        }
+      ]
     ],
     "android": {
       "package": "com.tkolya.korneo",
