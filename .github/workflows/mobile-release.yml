@@ -21,7 +21,6 @@ jobs:
     defaults:
       run:
         working-directory: apps/mobile
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -49,53 +48,33 @@ jobs:
           echo "EXPO_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}" >> .env
 
       - name: Expo Prebuild (generate android/)
-        run: npx expo prebuild --platform android --clean --no-install
-
-      - name: Patch ExpoModulesCorePlugin.gradle (fix SoftwareComponent AGP 8.x)
-        run: |
-          PLUGIN_FILE="$(find . -path '*/expo-modules-core/android/ExpoModulesCorePlugin.gradle' | head -1)"
-          if [ -f "$PLUGIN_FILE" ]; then
-            echo "Patching $PLUGIN_FILE"
-            sed -i 's/components.release/components["release"]/g' "$PLUGIN_FILE"
-            sed -i 's/from components.release/from components["release"]/g' "$PLUGIN_FILE"
-            echo "Patch applied"
-          else
-            echo "Plugin file not found, skipping patch"
-          fi
+        run: npx expo prebuild --platform android --clean
+        env:
+          NODE_ENV: production
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
       - name: Build Release APK
-        run: |
-          cd android
-          ./gradlew assembleRelease \
-            -PversionCode=${{ github.run_number }} \
-            -PversionName="1.${{ github.run_number }}" \
-            --no-daemon
+        run: cd android && ./gradlew assembleRelease --no-daemon -Pkotlin.incremental=false
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false -Dkotlin.compiler.execution.strategy=in-process"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
+        if: success()
         with:
-          name: korneo-mobile-apk-${{ github.run_number }}
-          path: apps/mobile/android/app/build/outputs/apk/release/app-release-unsigned.apk
+          name: korneo-release-apk
+          path: apps/mobile/android/app/build/outputs/apk/release/app-release*.apk
           retention-days: 30
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
+        if: success()
         with:
-          tag_name: "mobile-v1.${{ github.run_number }}"
-          name: "Korneo Mobile v1.${{ github.run_number }}"
-          body: |
-            ## Korneo Mobile v1.${{ github.run_number }}
-
-            Автоматическая сборка из ветки `main`.
-
-            ### Установка на Android:
-            1. Скачай `app-release-unsigned.apk`
-            2. Настройки → Безопасность → Разрешить установку из неизвестных источников
-            3. Открой файл и установи
-
-            ### Сборка: `${{ github.sha }}`
-          files: apps/mobile/android/app/build/outputs/apk/release/app-release-unsigned.apk
-          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: mobile-v${{ github.run_number }}
+          name: Korneo Mobile APK v${{ github.run_number }}
+          files: apps/mobile/android/app/build/outputs/apk/release/app-release*.apk
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
