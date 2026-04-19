@@ -52,6 +52,9 @@ jobs:
         env:
           NODE_ENV: production
 
+      - name: Create local.properties
+        run: echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
+
       - name: Patch PermissionsService.kt (fix null-safety bug)
         run: |
           FILE=$(find node_modules -name "PermissionsService.kt" 2>/dev/null | head -1)
