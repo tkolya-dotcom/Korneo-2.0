@@ -53,19 +53,16 @@ jobs:
           NODE_ENV: production
 
       - name: Patch PermissionsService.kt (null-safety fix)
-        working-directory: apps/mobile
         run: |
-          FILE="node_modules/expo-modules-core/android/src/main/java/expo/modules/adapters/react/permissions/PermissionsService.kt"
-          if [ -f "$FILE" ]; then
+          find . -path "*/expo-modules-core/android/src/main/java/expo/modules/adapters/react/permissions/PermissionsService.kt" | while read FILE; do
+            echo "Patching: $FILE"
             sed -i 's/grantResults\.contains(/grantResults?.contains(/g' "$FILE"
             sed -i 's/grantResults\.isNotEmpty/grantResults?.isNotEmpty/g' "$FILE"
             sed -i 's/grantResults\.isEmpty/grantResults?.isEmpty/g' "$FILE"
             sed -i 's/grantResults\.all(/grantResults?.all(/g' "$FILE"
             sed -i 's/grantResults\.any(/grantResults?.any(/g' "$FILE"
-            echo "Patched PermissionsService.kt"
-          else
-            echo "File not found, skipping"
-          fi
+            echo "Patch done"
+          done
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
