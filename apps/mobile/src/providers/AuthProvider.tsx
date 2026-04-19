@@ -1,55 +1,94 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { Session } from '@supabase/supabase-js';
-import { supabase } from '@/src/lib/supabase';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { authApi, usersApi, supabase } from '@/src/lib/supabase';
+
+type User = {
+  id: string;
+  email: string;
+  name: string;
+  role: 'manager' | 'worker';
+  is_online?: boolean;
+};
 
 type AuthContextValue = {
-  session: Session | null;
+  user: User | null;
   loading: boolean;
+  session: any;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  login: (email: string, password: string) => Promise<any>;
+  register: (email: string, password: string, name: string, role: string) => Promise<any>;
+  logout: () => Promise<void>;
+  isManager: boolean;
+  isWorker: boolean;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
+  return context;
+};
+
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setLoading(false);
+    let mounted = true;
+    const init = async () => {
+      const { data: { session: s } } = await supabase.auth.getSession();
+      setSession(s);
+      if (s?.access_token) {
+        try {
+          const data = await authApi.getMe();
+          setUser(data.user);
+        } catch { setUser(null); }
+      }
+      if (mounted) setLoading(false);
+    };
+    init();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, s) => {
+      setSession(s);
+      if (!s?.access_token) { setUser(null); return; }
+      try {
+        const data = await authApi.getMe();
+        setUser(data.user);
+      } catch { setUser(null); }
     });
-
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-      setLoading(false);
-    });
-
-    return () => listener.subscription.unsubscribe();
+    return () => { mounted = false; subscription.unsubscribe(); };
   }, []);
 
-  const value = useMemo(
-    () => ({
-      session,
-      loading,
-      signIn: async (email: string, password: string) => {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-      },
-      signOut: async () => {
-        const { error } = await supabase.auth.signOut();
-        if (error) throw error;
-      },
-    }),
-    [loading, session]
+  const login = async (email: string, password: string) => {
+    const data = await authApi.login(email, password);
+    setUser(data.user);
+    return data;
+  };
+
+  const register = async (email: string, password: string, name: string, role: string) => {
+    const data = await authApi.register(email, password, name, role);
+    setUser(data.user);
+    return data;
+  };
+
+  const logout = async () => {
+    try { await usersApi.markOffline(); } catch {}
+    await supabase.auth.signOut();
+    setUser(null);
+    setSession(null);
+  };
+
+  return (
+    <AuthContext.Provider value={{
+      user, loading, session,
+      signIn: async (email, password) => { await login(email, password); },
+      signOut: logout,
+      login, register, logout,
+      isManager: user?.role === 'manager',
+      isWorker: user?.role === 'worker',
+    }}>
+      {children}
+    </AuthContext.Provider>
   );
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
-
-export const useAuth = () => {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
-  return ctx;
 };

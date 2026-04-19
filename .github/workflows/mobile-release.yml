@@ -1,4 +1,4 @@
-name: mobile-eas-release
+name: Build Korneo Android APK (Native Gradle)
 
 on:
   workflow_dispatch:
@@ -7,8 +7,13 @@ on:
     paths:
       - 'apps/mobile/**'
       - '.github/workflows/mobile-release.yml'
-      - 'packages/domain/**'
-      - 'packages/api/**'
+
+permissions:
+  contents: write
+
+env:
+  EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+  EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
 
 jobs:
   build-android:
@@ -21,26 +26,88 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup Node 20
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
 
-      - name: Install deps
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
         run: npm install
 
-      - name: Setup Expo + EAS
-        uses: expo/expo-github-action@v8
-        with:
-          expo-version: latest
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Install Expo CLI
+        run: npm install -g expo-cli @expo/cli
 
-      - name: Inject env
+      - name: Create .env for build
         run: |
-          echo "EXPO_PUBLIC_SUPABASE_URL=${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}" >> $GITHUB_ENV
-          echo "EXPO_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}" >> $GITHUB_ENV
+          echo "EXPO_PUBLIC_SUPABASE_URL=${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}" > .env
+          echo "EXPO_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}" >> .env
 
-      - name: Build Android (AAB)
-        run: eas build --platform android --profile production --non-interactive
+      - name: Expo Prebuild (generate android/ folder)
+        run: npx expo prebuild --platform android --clean --no-install
+
+      - name: Make gradlew executable
+        run: chmod +x android/gradlew
+
+      - name: Build Release APK
+        run: |
+          cd android
+          ./gradlew assembleRelease \
+            -PversionCode=${{ github.run_number }} \
+            -PversionName="2.${{ github.run_number }}" \
+            --no-daemon
+
+      - name: Write version.json
+        working-directory: ${{ github.workspace }}
+        run: |
+          echo '{
+            "versionCode": ${{ github.run_number }},
+            "versionName": "2.${{ github.run_number }}",
+            "downloadUrl": "https://github.com/tkolya-dotcom/Korneo2/releases/download/mobile-v${{ github.run_number }}/korneo-release.apk",
+            "releaseNotes": "Native Expo build v2.${{ github.run_number }}"
+          }' > version.json
+
+      - name: Commit version.json
+        working-directory: ${{ github.workspace }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add version.json
+          git diff --cached --quiet || git commit -m "chore: mobile native build v2.${{ github.run_number }}"
+          git push
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: korneo-native-apk
+          path: apps/mobile/android/app/build/outputs/apk/release/app-release-unsigned.apk
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "mobile-v${{ github.run_number }}"
+          name: "Korneo Native v2.${{ github.run_number }}"
+          body: |
+            📱 **Native Expo/React Native APK** v2.${{ github.run_number }}
+
+            > Нативное приложение на React Native (Expo) с полной бизнес-логикой
+
+            **Страницы:** Dashboard, Проекты, Задачи, Монтажи, Заявки, Архив
+            **Авторизация:** Supabase (email/password) + роли manager/worker
+
+            **Установка:**
+            1. Скачай `korneo-release.apk`
+            2. Настройки → Безопасность → Разрешить установку из неизвестных источников
+            3. Открой и установи
+          files: apps/mobile/android/app/build/outputs/apk/release/app-release-unsigned.apk
+          token: ${{ secrets.GITHUB_TOKEN }}

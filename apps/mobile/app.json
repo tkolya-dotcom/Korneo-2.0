@@ -1,16 +1,36 @@
 {
   "expo": {
-    "name": "Korneo Mobile",
+    "name": "Korneo",
     "slug": "korneo-mobile",
     "version": "1.0.0",
     "scheme": "korneo",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "plugins": ["expo-router", "expo-notifications"],
-    "extra": {
-      "eas": {
-        "projectId": "replace-with-eas-project-id"
-      }
+    "backgroundColor": "#0f172a",
+    "splash": {
+      "backgroundColor": "#0f172a",
+      "resizeMode": "contain"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "android": {
+      "package": "com.tkolya.korneo",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#0f172a"
+      },
+      "permissions": [
+        "android.permission.INTERNET"
+      ]
+    },
+    "ios": {
+      "bundleIdentifier": "com.tkolya.korneo",
+      "supportsTablet": true
+    },
+    "experiments": {
+      "typedRoutes": true
     }
   }
 }
