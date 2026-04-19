@@ -57,31 +57,31 @@ jobs:
           cp assets/icon.png assets/splash.png
           cp assets/icon.png assets/favicon.png
 
+      - name: Patch expo-modules-core Compose Compiler before prebuild
+        run: |
+          EXPO_MODULES_BUILD="node_modules/expo-modules-core/android/build.gradle"
+          if [ -f "$EXPO_MODULES_BUILD" ]; then
+            echo "Patching $EXPO_MODULES_BUILD"
+            sed -i 's/composeCompilerVersion = "1.5.15"/composeCompilerVersion = "1.5.14"/g' "$EXPO_MODULES_BUILD"
+            grep -n 'composeCompilerVersion' "$EXPO_MODULES_BUILD" | head -5
+          fi
+
       - name: Expo Prebuild
         run: npx expo prebuild --platform android --clean --no-install
 
-      - name: Patch gradle.properties for Kotlin compatibility
+      - name: Patch all gradle files after prebuild
         run: |
-          echo "kotlinVersion=1.9.25" >> android/gradle.properties
-                    echo "android.kotlinVersion=1.9.25" >> android/gradle.properties
-          echo "android.suppressKotlinVersionCompatibilityCheck=true" >> android/gradle.properties
-          echo "org.jetbrains.kotlin.android.suppressGradlePluginCompatibility=true" >> android/gradle.properties
-
-      - name: Patch Kotlin version in build.gradle files
-        run: |
-          # Patch root build.gradle
-          if [ -f android/build.gradle ]; then
-            sed -i 's/kotlinVersion = "[0-9.]*"/kotlinVersion = "1.9.25"/g' android/build.gradle
-            sed -i 's/kotlin_version = "[0-9.]*"/kotlin_version = "1.9.25"/g' android/build.gradle
-            sed -i "s/ext.kotlin_version = '[0-9.]*'/ext.kotlin_version = '1.9.25'/g" android/build.gradle
-            sed -i 's/id "org.jetbrains.kotlin.android" version "[0-9.]*"/id "org.jetbrains.kotlin.android" version "1.9.25"/g' android/build.gradle
-          fi
-          # Patch settings.gradle if present
-          if [ -f android/settings.gradle ]; then
-            sed -i 's/id("org.jetbrains.kotlin.android") version "[0-9.]*"/id("org.jetbrains.kotlin.android") version "1.9.25"/g' android/settings.gradle
-          fi
-          echo "=== Kotlin references found ==="
-          grep -rn "kotlin" android/build.gradle || true
+          echo "=== Searching for 1.5.15 in gradle files ==="
+          grep -rn '1.5.15' android/ 2>/dev/null || echo 'No 1.5.15 found'
+          echo "=== Patching all .gradle files ==="
+          find android -name '*.gradle' -o -name '*.kts' 2>/dev/null | while read f; do
+            if grep -q '1.5.15' "$f" 2>/dev/null; then
+              echo "Patching: $f"
+              sed -i 's/1.5.15/1.5.14/g' "$f"
+            fi
+          done
+          echo "=== Done. Remaining references ==="
+          grep -rn '1.5.15' android/ 2>/dev/null || echo 'All patched'
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
@@ -92,8 +92,8 @@ jobs:
           ./gradlew assembleDebug \
             -PversionCode=${{ github.run_number }} \
             -PversionName=2.${{ github.run_number }} \
-            --no-daemon \
-            --stacktrace
+            -Pandroid.kotlinVersion=1.9.25 \
+            --no-daemon
 
       - name: Rename APK
         run: |
