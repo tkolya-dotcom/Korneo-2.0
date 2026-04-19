@@ -7,20 +7,8 @@
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0f172a",
-    "splash": {
-      "backgroundColor": "#0f172a",
-      "resizeMode": "contain"
-    },
     "plugins": [
       "expo-router",
-      [
-        "expo-splash-screen",
-        {
-          "image": "./assets/splash.png",
-          "resizeMode": "contain",
-          "backgroundColor": "#0f172a"
-        }
-      ],
       [
         "expo-build-properties",
         {
@@ -33,10 +21,6 @@
     "android": {
       "package": "com.tkolya.korneo",
       "versionCode": 1,
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
-        "backgroundColor": "#0f172a"
-      },
       "permissions": [
         "android.permission.INTERNET"
       ]
