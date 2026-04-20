@@ -51,11 +51,11 @@ export default function AppTabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="purchase-requests"
+        name="users"
         options={{
-          title: 'Заявки',
-          tabBarLabel: 'Заявки',
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🛒</Text>,
+          title: 'Люди',
+          tabBarLabel: 'Люди',
+          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>👥</Text>,
         }}
       />
       <Tabs.Screen
@@ -72,9 +72,16 @@ export default function AppTabsLayout() {
           tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>👤</Text>,
         }}
       />
+      {/* Hidden screens (no tab bar) */}
       <Tabs.Screen name="project/[id]" options={{ href: null }} />
+      <Tabs.Screen name="project/create" options={{ href: null }} />
       <Tabs.Screen name="task/[id]" options={{ href: null }} />
+      <Tabs.Screen name="task/create" options={{ href: null }} />
+      <Tabs.Screen name="task/[id]/comments" options={{ href: null }} />
       <Tabs.Screen name="installation/[id]" options={{ href: null }} />
+      <Tabs.Screen name="installation/create" options={{ href: null }} />
+      <Tabs.Screen name="installation/[id]/comments" options={{ href: null }} />
+      <Tabs.Screen name="purchase-requests" options={{ href: null }} />
     </Tabs>
   );
 }
