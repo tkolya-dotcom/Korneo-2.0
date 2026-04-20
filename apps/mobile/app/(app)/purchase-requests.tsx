@@ -9,7 +9,7 @@ const statusColor = (s: string) => ({ pending: C.yellow, approved: C.green, reje
 const statusLabel = (s: string) => ({ pending: 'Ожидает', approved: 'Одобрена', rejected: 'Отклонена', completed: 'Готова', cancelled: 'Отменена' }[s] || s);
 
 export default function PurchaseRequestsScreen() {
-  const { user, isManager } = useAuth();
+  const { user, isManagerOrHigher } = useAuth();
   const router = useRouter();
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,7 +63,7 @@ export default function PurchaseRequestsScreen() {
             </View>
             {item.installation?.title && <Text style={s.sub}>🔧 {item.installation.title || item.installation.address}</Text>}
             {item.creator?.name && <Text style={s.sub}>👤 {item.creator.name}</Text>}
-            {isManager && item.status === 'pending' && (
+            {isManagerOrHigher && item.status === 'pending' && (
               <View style={s.actions}>
                 <TouchableOpacity style={[s.actionBtn, { backgroundColor: C.green + '22' }]} onPress={() => approve(item.id)}>
                   <Text style={[s.actionBtnText, { color: C.green }]}>Одобрить</Text>

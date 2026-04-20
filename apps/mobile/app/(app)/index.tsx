@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAuth } from '@/src/providers/AuthProvider';
+import { useAuth, ROLES } from '@/src/providers/AuthProvider';
 import { projectsApi, tasksApi, installationsApi, purchaseRequestsApi } from '@/src/lib/supabase';
 
 const COLORS = { bg: '#0f172a', card: '#1e293b', accent: '#02d7ff', text: '#e8f1ff', sub: '#9ab0c5', green: '#22c55e', yellow: '#f59e0b', red: '#ef4444', orange: '#f97316' };
@@ -13,8 +13,20 @@ const StatCard = ({ label, value, color }: { label: string; value: number; color
   </View>
 );
 
+// Функция для получения иконки и названия роли
+const getRoleDisplay = (role: string | undefined) => {
+  switch (role) {
+    case ROLES.MANAGER: return { icon: '👔', name: 'Менеджер' };
+    case ROLES.DEPUTY_HEAD: return { icon: '👨‍💼', name: 'Зам. начальника' };
+    case ROLES.ADMIN: return { icon: '🔐', name: 'Администратор' };
+    case ROLES.ENGINEER: return { icon: '📐', name: 'Инженер' };
+    case ROLES.WORKER: return { icon: '🔧', name: 'Монтажник' };
+    default: return { icon: '👤', name: 'Пользователь' };
+  }
+};
+
 export default function DashboardScreen() {
-  const { user, isManager, logout } = useAuth();
+  const { user, isManager, isManagerOrHigher, isWorker, isEngineer, logout } = useAuth();
   const router = useRouter();
   const [stats, setStats] = useState({ projects: 0, tasks: 0, installations: 0, purchaseRequests: 0 });
   const [recentTasks, setRecentTasks] = useState<any[]>([]);
@@ -23,11 +35,16 @@ export default function DashboardScreen() {
 
   const load = async () => {
     try {
+      // Фильтрация данных в зависимости от роли:
+      // - worker и engineer видят только свои задачи
+      // - manager, deputy_head, admin видят все задачи и заявки
+      const isPrivileged = isManagerOrHigher;
+      
       const [projects, tasks, installations, prs] = await Promise.all([
         projectsApi.getAll('active').catch(() => []),
-        tasksApi.getAll(isManager ? {} : { assignee_id: user?.id }).catch(() => []),
-        installationsApi.getAll(isManager ? {} : { assignee_id: user?.id }).catch(() => []),
-        isManager ? purchaseRequestsApi.getAll({ status: 'pending' }).catch(() => []) : Promise.resolve([]),
+        tasksApi.getAll(isPrivileged ? {} : { assignee_id: user?.id }).catch(() => []),
+        installationsApi.getAll(isPrivileged ? {} : { assignee_id: user?.id }).catch(() => []),
+        isPrivileged ? purchaseRequestsApi.getAll({ status: 'pending' }).catch(() => []) : Promise.resolve([]),
       ]);
       setStats({ projects: projects?.length || 0, tasks: tasks?.length || 0, installations: installations?.length || 0, purchaseRequests: prs?.length || 0 });
       setRecentTasks((tasks || []).slice(0, 5));
@@ -46,6 +63,8 @@ export default function DashboardScreen() {
   };
   const getStatus = (s: string) => STATUS_MAP[s] || { color: COLORS.sub, label: s };
 
+  const roleDisplay = getRoleDisplay(user?.role);
+
   if (loading) return <View style={styles.center}><ActivityIndicator color={COLORS.accent} size="large" /></View>;
 
   return (
@@ -54,7 +73,7 @@ export default function DashboardScreen() {
         <View>
           <Text style={styles.greeting}>Добрый день,</Text>
           <Text style={styles.name}>{user?.name || user?.email}</Text>
-          <Text style={styles.role}>{user?.role === 'manager' ? '👔 Менеджер' : user?.role === 'engineer' ? '📐 Инженер' : '🔧 Монтажник'}</Text>
+          <Text style={styles.role}>{roleDisplay.icon} {roleDisplay.name}</Text>
         </View>
         <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
           <Text style={styles.logoutText}>Выйти</Text>
@@ -66,14 +85,17 @@ export default function DashboardScreen() {
         <StatCard label="Проекты" value={stats.projects} color={COLORS.accent} />
         <StatCard label="Задачи" value={stats.tasks} color={COLORS.green} />
         <StatCard label="Монтажи" value={stats.installations} color={COLORS.orange} />
-        {isManager && <StatCard label="Заявки" value={stats.purchaseRequests} color={COLORS.red} />}
+        {isManagerOrHigher && <StatCard label="Заявки" value={stats.purchaseRequests} color={COLORS.red} />}
       </View>
 
       <Text style={styles.sectionTitle}>Быстрый доступ</Text>
       <View style={styles.navGrid}>
-        {[['📋', 'Проекты', '/(app)/projects'], ['✅', 'Задачи', '/(app)/tasks'],
+        {[
+          ['📋', 'Проекты', '/(app)/projects'],
+          ['✅', 'Задачи', '/(app)/tasks'],
           ['🔧', 'Монтажи', '/(app)/installations'],
-          ...(isManager ? [['🛒', 'Заявки', '/(app)/purchase-requests']] : []),
+          // Заявки видят только manager и выше
+          ...(isManagerOrHigher ? [['🛒', 'Заявки', '/(app)/purchase-requests']] : []),
           ['📦', 'Архив', '/(app)/archive']
         ].map(([icon, label, path]) => (
           <TouchableOpacity key={path} style={styles.navCard} onPress={() => router.push(path as any)}>
@@ -87,7 +109,7 @@ export default function DashboardScreen() {
         <>
           <Text style={styles.sectionTitle}>Последние задачи</Text>
           {recentTasks.map(task => (
-            <TouchableOpacity key={task.id} style={styles.taskCard} onPress={() => router.push({ pathname: '/(app)/task/[id]', params: { id: task.id } } as any)}>
+            <TouchableOpacity key={task.id} style={styles.taskCard} onPress={() => router.push({pathname: '/(app)/task/[id]', params: { id: task.id } } as any)}>
               <View style={styles.taskRow}>
                 <Text style={styles.taskTitle} numberOfLines={1}>{task.title}</Text>
                 <View style={[styles.badge, { backgroundColor: getStatus(task.status).color }]}>

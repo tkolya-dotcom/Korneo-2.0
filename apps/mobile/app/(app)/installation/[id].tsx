@@ -12,7 +12,7 @@ const statusColor = (s: string) => ({ pending: C.yellow, in_progress: C.orange, 
 export default function InstallationDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { isManager } = useAuth();
+  const { isManagerOrHigher } = useAuth();
   const [item, setItem] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);

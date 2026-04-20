@@ -9,7 +9,7 @@ const statusColor = (s: string) => ({ active: C.green, pending: C.yellow, in_pro
 const statusLabel = (s: string) => ({ active: 'Активный', pending: 'Ожидает', in_progress: 'В работе', completed: 'Завершён', cancelled: 'Отменён' }[s] || s);
 
 export default function InstallationsScreen() {
-  const { user, isManager } = useAuth();
+  const { user, isManagerOrHigher } = useAuth();
   const router = useRouter();
   const [items, setItems] = useState<any[]>([]);
   const [filtered, setFiltered] = useState<any[]>([]);
@@ -19,7 +19,7 @@ export default function InstallationsScreen() {
 
   const load = async () => {
     try {
-      const data = await installationsApi.getAll(isManager ? {} : { assignee_id: user?.id });
+      const data = await installationsApi.getAll(isManagerOrHigher ? {} : { assignee_id: user?.id });
       setItems(data || []);
       setFiltered(data || []);
     } catch (e) { console.error(e); }

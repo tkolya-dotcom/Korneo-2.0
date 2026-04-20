@@ -9,7 +9,7 @@ const statusColor = (s: string) => ({ active: C.green, pending: C.yellow, in_pro
 const statusLabel = (s: string) => ({ active: 'Активна', pending: 'Ожидает', in_progress: 'В работе', completed: 'Готова', cancelled: 'Отменена' }[s] || s);
 
 export default function TasksScreen() {
-  const { user, isManager } = useAuth();
+  const { user, isManagerOrHigher } = useAuth();
   const router = useRouter();
   const [tasks, setTasks] = useState<any[]>([]);
   const [filtered, setFiltered] = useState<any[]>([]);
@@ -19,7 +19,7 @@ export default function TasksScreen() {
 
   const load = async () => {
     try {
-      const data = await tasksApi.getAll(isManager ? {} : { assignee_id: user?.id });
+      const data = await tasksApi.getAll(isManagerOrHigher ? {} : { assignee_id: user?.id });
       setTasks(data || []);
       setFiltered(data || []);
     } catch (e) { console.error(e); }
