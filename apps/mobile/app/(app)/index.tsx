@@ -24,10 +24,10 @@ const COLORS = { bg: '#0f172a', card: '#1e293b', accent: '#02d7ff', text: '#e8f1
 >>>>>>> dd3744c539c31c2d34149066cd6bfad4332e3c60
 
 const ROLE_LABELS: Record<string, string> = {
-  worker: 'МОНТАЖНИК',
-  engineer: 'ИНЖЕНЕР',
-  manager: 'МЕНЕДЖЕР',
-  deputy_head: 'ЗАМ.РУКОВОДИТЕЛЯ',
+  worker: 'Инженер',
+  engineer: 'Руководитель группы',
+  manager: 'Руководитель',
+  deputy_head: 'ЗАМ.РУКОВОДИТЕЛЯ ОТДЕЛА',
   admin: 'АДМИН',
 };
 
