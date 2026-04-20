@@ -1,8 +1,9 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js'
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+// Supabase URL - синхронизация с веб-приложением
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://jmxjbdnqnzkzxgsfywha.supabase.co';
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpteGpiZG5xbnprenhnc2Z5d2hhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzExNTQ0MzQsImV4cCI6MjA4NjczMDQzNH0.z6y6DGs9Z6kojQYeAdsgKA-m4pxuoeABdY4rAojPEE4';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -13,35 +14,69 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
-// Helper
+// Helper для обработки ошибок
 const handle = <T>(data: T | null, error: { message: string } | null): T => {
   if (error) throw new Error(error.message);
   return data as T;
 };
 
-// Auth API
+// Auth API - как в веб-приложении
 export const authApi = {
   login: async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
-    const { data: user, error: userError } = await supabase.from('users').select('*').eq('id', data.user.id).single();
-    if (userError) throw userError;
+    
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', data.user.id)
+      .single();
+    
+    if (userError) {
+      if (userError.code === 'PGRST116') {
+        return { token: data.session?.access_token || null, user: { id: data.user.id, email: data.user.email, role: 'worker' } };
+      }
+      throw userError;
+    }
     return { token: data.session?.access_token || null, user };
   },
+  
   register: async (email: string, password: string, name: string, role: string) => {
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) throw error;
-    const { data: user, error: userError } = await supabase.from('users').insert([{ id: data.user!.id, email, name, role }]).select().single();
-    if (userError) throw userError;
+    
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .insert([{ id: data.user!.id, email, name, role }])
+      .select()
+      .single();
+    
+    if (userError) {
+      console.error('Ошибка создания профиля:', userError);
+      return { token: data.session?.access_token || null, user: { id: data.user!.id, email, name, role } };
+    }
     return { token: data.session?.access_token || null, user };
   },
+  
   getMe: async () => {
     const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
     if (authError || !authUser) throw new Error('Not authenticated');
-    const { data: user, error: userError } = await supabase.from('users').select('*').eq('id', authUser.id).single();
-    if (userError) throw userError;
+    
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', authUser.id)
+      .single();
+    
+    if (userError) {
+      if (userError.code === 'PGRST116') {
+        return { user: { id: authUser.id, email: authUser.email, role: 'worker', name: authUser.email?.split('@')[0] } };
+      }
+      throw userError;
+    }
     return { user };
   },
+  
   getUsers: async (role?: string) => {
     let query = supabase.from('users').select('*');
     if (role) query = query.eq('role', role);
@@ -102,7 +137,8 @@ export const tasksApi = {
     return handle(data, error);
   },
   create: async (task: any) => {
-    const { data, error } = await supabase.from('tasks').insert([task]).select().single();
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data, error } = await supabase.from('tasks').insert([{ ...task, created_by: user?.id }]).select().single();
     return handle(data, error);
   },
   update: async (id: string, task: any) => {
@@ -133,7 +169,8 @@ export const installationsApi = {
     return handle(data, error);
   },
   create: async (inst: any) => {
-    const { data, error } = await supabase.from('installations').insert([inst]).select().single();
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data, error } = await supabase.from('installations').insert([{ ...inst, created_by: user?.id }]).select().single();
     return handle(data, error);
   },
   update: async (id: string, inst: any) => {
@@ -181,13 +218,139 @@ export const purchaseRequestsApi = {
   },
 };
 
+// Materials API (склад)
 export const materialsApi = {
   getAll: async () => {
-    const { data, error } = await supabase.from('materials').select('*');
+    const { data, error } = await supabase.from('materials').select('*').order('name');
     return handle(data, error);
   },
   search: async (searchTerm: string) => {
     const { data, error } = await supabase.from('materials').select('*').ilike('name', `%${searchTerm}%`);
     return handle(data, error);
+  },
+  updateStock: async (id: string, quantity: number) => {
+    const { data, error } = await supabase.from('materials').update({ quantity }).eq('id', id).select().single();
+    return handle(data, error);
+  },
+};
+
+// Chat API - как в веб-приложении js/chat.js
+export const chatsApi = {
+  getAll: async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+    
+    const { data, error } = await supabase
+      .from('chat_members')
+      .select('*, chat:chats(*)')
+      .eq('user_id', user.id);
+    
+    if (error) throw error;
+    return (data || []).map((m: any) => m.chat).filter(Boolean);
+  },
+  
+  getMessages: async (chatId: string, limit = 50) => {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*, sender:sender_id(*)')
+      .eq('chat_id', chatId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return (data || []).reverse();
+  },
+  
+  sendMessage: async (chatId: string, content: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+    
+    const { data, error } = await supabase
+      .from('messages')
+      .insert([{ chat_id: chatId, sender_id: user.id, content, type: 'text' }])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+  
+  createChat: async (name: string, type: string = 'private', memberIds: string[] = []) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+    
+    const { data: chat, error: chatError } = await supabase
+      .from('chats')
+      .insert([{ name, type, created_by: user.id }])
+      .select()
+      .single();
+    if (chatError) throw chatError;
+    
+    const members = [
+      { chat_id: chat.id, user_id: user.id }, 
+      ...memberIds.filter((id: string) => id !== user.id).map((id: string) => ({ chat_id: chat.id, user_id: id }))
+    ];
+    await supabase.from('chat_members').insert(members);
+    
+    return chat;
+  },
+  
+  subscribeToMessages: (chatId: string, callback: (msg: any) => void) => {
+    return supabase
+      .channel(`messages:${chatId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` }, (payload: any) => {
+        callback(payload.new);
+      })
+      .subscribe();
+  },
+};
+
+// Sites API (площадки)
+export const sitesApi = {
+  getAll: async () => {
+    const { data, error } = await supabase.from('sites').select('*').order('name');
+    return handle(data, error);
+  },
+  getById: async (id: string) => {
+    const { data, error } = await supabase.from('sites').select('*').eq('id', id).single();
+    return handle(data, error);
+  },
+};
+
+// Tasks AVR API (Аварийно-Восстановительные Работы)
+export const tasksAvrApi = {
+  getAll: async (filters: any = {}) => {
+    let query = supabase.from('tasks_avr').select('*, project:project_id(*), assignee:assignee_id(*)');
+    if (filters.status) query = query.eq('status', filters.status);
+    const { data, error } = await query;
+    return handle(data, error);
+  },
+  create: async (task: any) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data, error } = await supabase.from('tasks_avr').insert([{ ...task, created_by: user?.id, status: 'new' }]).select().single();
+    return handle(data, error);
+  },
+};
+
+// Comments API (комментарии к задачам и монтажам)
+export const commentsApi = {
+  getByTask: async (taskId: string, taskType: 'task' | 'installation' = 'task') => {
+    const table = taskType === 'task' ? 'task_comments' : 'installation_comments';
+    const { data, error } = await supabase.from(table).select('*, author:author_id(*)').eq('task_id', taskId).order('created_at', { ascending: true });
+    return handle(data, error);
+  },
+  create: async (taskId: string, content: string, taskType: 'task' | 'installation' = 'task') => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+    const table = taskType === 'task' ? 'task_comments' : 'installation_comments';
+    const { data, error } = await supabase.from(table).insert([{ task_id: taskId, author_id: user.id, content }]).select().single();
+    return handle(data, error);
+  },
+  subscribe: (taskId: string, taskType: 'task' | 'installation', callback: (comment: any) => void) => {
+    const table = taskType === 'task' ? 'task_comments' : 'installation_comments';
+    return supabase
+      .channel(`comments:${taskType}:${taskId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table, filter: `task_id=eq.${taskId}` }, (payload: any) => {
+        callback(payload.new);
+      })
+      .subscribe();
   },
 };

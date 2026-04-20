@@ -1,12 +1,24 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { authApi, usersApi, supabase } from '@/src/lib/supabase';
 
+// 5 ролей как в веб-приложении
+export type UserRole = 'worker' | 'engineer' | 'manager' | 'deputy_head' | 'admin';
+
+export const ROLES = {
+  WORKER: 'worker',
+  ENGINEER: 'engineer',
+  MANAGER: 'manager',
+  DEPUTY_HEAD: 'deputy_head',
+  ADMIN: 'admin',
+} as const;
+
 type User = {
   id: string;
   email: string;
   name: string;
-  role: 'manager' | 'worker';
+  role: UserRole;
   is_online?: boolean;
+  fcm_token?: string;
 };
 
 type AuthContextValue = {
@@ -18,8 +30,15 @@ type AuthContextValue = {
   login: (email: string, password: string) => Promise<any>;
   register: (email: string, password: string, name: string, role: string) => Promise<any>;
   logout: () => Promise<void>;
-  isManager: boolean;
+  // Роли и права как в веб-приложении
   isWorker: boolean;
+  isEngineer: boolean;
+  isManagerOrHigher: boolean; // manager, deputy_head, admin
+  canCreateTasks: boolean;
+  canDeleteTasks: boolean;
+  canApproveRequests: boolean;
+  canManageUsers: boolean;
+  hasRole: (roles: UserRole[]) => boolean;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -28,6 +47,12 @@ export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) throw new Error('useAuth must be used within AuthProvider');
   return context;
+};
+
+// Проверка роли как в веб-приложении
+const checkRole = (userRole: UserRole | undefined, requiredRoles: UserRole[]): boolean => {
+  if (!userRole) return false;
+  return requiredRoles.includes(userRole);
 };
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
@@ -44,29 +69,45 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         try {
           const data = await authApi.getMe();
           setUser(data.user);
+          // Heartbeat для online статуса
+          usersApi.heartbeat();
         } catch { setUser(null); }
       }
       if (mounted) setLoading(false);
     };
     init();
+
+    // Подписка на изменения аутентификации
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, s) => {
       setSession(s);
       if (!s?.access_token) { setUser(null); return; }
       try {
         const data = await authApi.getMe();
         setUser(data.user);
+        usersApi.heartbeat();
       } catch { setUser(null); }
     });
-    return () => { mounted = false; subscription.unsubscribe(); };
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+      // Помечаем offline при выходе
+      usersApi.markOffline();
+    };
   }, []);
 
   const login = async (email: string, password: string) => {
     const data = await authApi.login(email, password);
     setUser(data.user);
+    usersApi.heartbeat();
     return data;
   };
 
   const register = async (email: string, password: string, name: string, role: string) => {
+    // Только worker и engineer доступны для регистрации как в веб-приложении
+    if (['manager', 'deputy_head', 'admin'].includes(role)) {
+      throw new Error('Регистрация на эту роль невозможна');
+    }
     const data = await authApi.register(email, password, name, role);
     setUser(data.user);
     return data;
@@ -79,14 +120,33 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setSession(null);
   };
 
+  // Права как в веб-приложении js/auth.js
+  const hasRole = (roles: UserRole[]) => checkRole(user?.role as UserRole, roles);
+
+  const isWorker = user?.role === ROLES.WORKER;
+  const isEngineer = user?.role === ROLES.ENGINEER;
+  const isManagerOrHigher = hasRole([ROLES.MANAGER, ROLES.DEPUTY_HEAD, ROLES.ADMIN]);
+
+  // Права из веб-приложения
+  const canCreateTasks = hasRole([ROLES.ENGINEER, ROLES.MANAGER, ROLES.DEPUTY_HEAD, ROLES.ADMIN]);
+  const canDeleteTasks = hasRole([ROLES.MANAGER, ROLES.DEPUTY_HEAD, ROLES.ADMIN]);
+  const canApproveRequests = hasRole([ROLES.MANAGER, ROLES.DEPUTY_HEAD, ROLES.ADMIN]);
+  const canManageUsers = hasRole([ROLES.MANAGER, ROLES.DEPUTY_HEAD, ROLES.ADMIN]);
+
   return (
     <AuthContext.Provider value={{
       user, loading, session,
       signIn: async (email, password) => { await login(email, password); },
       signOut: logout,
       login, register, logout,
-      isManager: user?.role === 'manager',
-      isWorker: user?.role === 'worker',
+      isWorker,
+      isEngineer,
+      isManagerOrHigher,
+      canCreateTasks,
+      canDeleteTasks,
+      canApproveRequests,
+      canManageUsers,
+      hasRole,
     }}>
       {children}
     </AuthContext.Provider>

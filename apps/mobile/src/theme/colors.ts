@@ -1,34 +1,39 @@
-// Dark theme palette — matches frontend CSS variables
+﻿// Dark theme palette - Cyberpunk/Matrix theme как в веб-приложении Korneo2
 export const COLORS = {
   // Core backgrounds
-  bg: '#0f172a',
-  card: '#1e293b',
-  surface: '#111820',
+  bg: '#0A0A0F',
+  card: '#1A1A2E',
+  surface: '#12121f',
 
   // Text
-  text: '#e8f1ff',
-  sub: '#9ab0c5',
-  textPrimary: '#e8f1ff',
-  textSecondary: '#9ab0c5',
+  text: '#E0E0E0',
+  sub: '#8892a0',
+  textPrimary: '#E0E0E0',
+  textSecondary: '#8892a0',
 
-  // Accent
-  accent: '#02d7ff',
-  accentSuccess: '#22c55e',
-  danger: '#ef4444',
-  warning: '#f59e0b',
+  // Accent colors - cyberpunk theme
+  accent: '#00D9FF',
+  accent2: '#00FF88',
+  glow: '#0080FF',
+
+  // Status colors
+  accentSuccess: '#22C55E',
+  danger: '#FF3366',
+  warning: '#FF6B00',
+  success: '#00FF88',
 
   // Borders
-  border: '#1e2a35',
+  border: 'rgba(0, 217, 255, 0.15)',
 
   // Status colours
   statusNew: '#6366f1',
-  statusActive: '#02d7ff',
-  statusDone: '#22c55e',
-  statusPaused: '#f59e0b',
-  statusCancelled: '#ef4444',
+  statusActive: '#00D9FF',
+  statusDone: '#00FF88',
+  statusPaused: '#F59E0B',
+  statusCancelled: '#FF3366',
 };
 
-// Legacy alias
+// Legacy alias для обратной совместимости
 export const colors = {
   background: COLORS.bg,
   surface: COLORS.card,

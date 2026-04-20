@@ -4,12 +4,25 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { projectsApi } from '@/src/lib/supabase';
 
-const C = { bg: '#0f172a', card: '#1e293b', accent: '#6366f1', text: '#f1f5f9', sub: '#94a3b8', border: '#334155', green: '#22c55e', yellow: '#f59e0b', orange: '#f97316' };
-const statusColor = (s: string) => ({ active: C.green, pending: C.yellow, completed: C.accent, cancelled: C.sub }[s] || C.sub);
-const statusLabel = (s: string) => ({ active: 'Активный', pending: 'Ожидает', completed: 'Завершён', cancelled: 'Отменён' }[s] || s);
+// Cyberpunk theme - cyan colors
+const C = { bg: '#0A0A0F', card: '#1A1A2E', accent: '#00D9FF', text: '#E0E0E0', sub: '#8892a0', border: 'rgba(0, 217, 255, 0.15)', green: '#00FF88' };
+
+const STATUS_COLORS: Record<string, string> = {
+  active: '#00D9FF',
+  pending: '#FFA500',
+  completed: '#00FF88',
+  cancelled: '#8892a0',
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  active: 'Активный',
+  pending: 'Ожидает',
+  completed: 'Завершён',
+  cancelled: 'Отменён',
+};
 
 export default function ProjectsScreen() {
-  const { isManager } = useAuth();
+  const { user, isManagerOrHigher } = useAuth();
   const router = useRouter();
   const [projects, setProjects] = useState<any[]>([]);
   const [filtered, setFiltered] = useState<any[]>([]);
@@ -26,6 +39,7 @@ export default function ProjectsScreen() {
   };
 
   useEffect(() => { load().finally(() => setLoading(false)); }, []);
+
   useEffect(() => {
     const q = search.toLowerCase();
     setFiltered(projects.filter(p => p.name?.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q)));
@@ -41,7 +55,9 @@ export default function ProjectsScreen() {
         <Text style={s.title}>Проекты</Text>
         <Text style={s.count}>{filtered.length}</Text>
       </View>
+
       <TextInput style={s.search} placeholder="Поиск..." placeholderTextColor={C.sub} value={search} onChangeText={setSearch} />
+
       <FlatList
         data={filtered}
         keyExtractor={item => item.id}
@@ -50,13 +66,14 @@ export default function ProjectsScreen() {
         ListEmptyComponent={<Text style={s.empty}>Проектов нет</Text>}
         renderItem={({ item }) => (
           <TouchableOpacity style={s.card} onPress={() => router.push({ pathname: '/(app)/project/[id]', params: { id: item.id } } as any)}>
-            <View style={s.row}>
+            <View style={s.cardHeader}>
               <Text style={s.cardTitle} numberOfLines={2}>{item.name}</Text>
-              <View style={[s.badge, { backgroundColor: statusColor(item.status) }]}>
-                <Text style={s.badgeText}>{statusLabel(item.status)}</Text>
+              <View style={[s.badge, { backgroundColor: STATUS_COLORS[item.status] || C.sub }]}>
+                <Text style={s.badgeText}>{STATUS_LABELS[item.status] || item.status}</Text>
               </View>
             </View>
-            {item.description && <Text style={s.sub} numberOfLines={2}>{item.description}</Text>}
+            
+            {item.description && <Text style={s.desc} numberOfLines={2}>{item.description}</Text>}
             {item.manager?.name && <Text style={s.sub}>👔 {item.manager.name}</Text>}
           </TouchableOpacity>
         )}
@@ -68,15 +85,16 @@ export default function ProjectsScreen() {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.bg },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingTop: 48 },
-  title: { color: C.text, fontSize: 26, fontWeight: '700' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingTop: 50 },
+  title: { color: C.accent, fontSize: 26, fontWeight: '700' },
   count: { color: C.sub, fontSize: 16 },
-  search: { backgroundColor: C.card, color: C.text, borderRadius: 10, margin: 16, marginTop: 0, padding: 12, fontSize: 14 },
-  card: { backgroundColor: C.card, borderRadius: 12, padding: 14, marginBottom: 10 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  search: { backgroundColor: C.card, color: C.text, borderRadius: 10, margin: 16, marginTop: 0, padding: 12, fontSize: 14, borderWidth: 1, borderColor: C.border },
+  card: { backgroundColor: C.card, borderRadius: 12, padding: 14, marginBottom: 10, borderLeftWidth: 3, borderLeftColor: C.accent },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   cardTitle: { color: C.text, fontSize: 15, fontWeight: '600', flex: 1, marginRight: 8 },
-  sub: { color: C.sub, fontSize: 12, marginTop: 4 },
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   badgeText: { color: '#fff', fontSize: 10, fontWeight: '600' },
+  desc: { color: C.sub, fontSize: 12, marginTop: 4 },
+  sub: { color: C.sub, fontSize: 12, marginTop: 4 },
   empty: { color: C.sub, textAlign: 'center', marginTop: 60, fontSize: 16 },
 });
