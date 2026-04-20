@@ -76,14 +76,10 @@ export default function AuthScreen() {
               <TouchableOpacity style={[styles.roleBtn, role === 'worker' && styles.activeRole]} onPress={() => setRole('worker')}>
                 <Text style={[styles.roleBtnText, role === 'worker' && styles.activeRoleTxt]}>Монтажник</Text>
               </TouchableOpacity>
-<<<<<<< HEAD
-              <TouchableOpacity style={[styles.roleBtn, role === 'engineer' && styles.activeRole]} onPress={() => setRole('engineer')}>
-=======
               <TouchableOpacity
                 style={[styles.roleBtn, role === 'engineer' && styles.activeRole]}
                 onPress={() => setRole('engineer')}
               >
->>>>>>> dd3744c539c31c2d34149066cd6bfad4332e3c60
                 <Text style={[styles.roleBtnText, role === 'engineer' && styles.activeRoleTxt]}>Инженер</Text>
               </TouchableOpacity>
             </View>
