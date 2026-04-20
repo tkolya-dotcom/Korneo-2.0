@@ -37,16 +37,22 @@ export default function AuthScreen() {
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.logoBox}>
-          <Text style={styles.logo}>Korneo</Text>
+          <Text style={styles.logo}>Корнео</Text>
           <Text style={styles.tagline}>Система управления стройкой</Text>
         </View>
 
         <View style={styles.card}>
           <View style={styles.tabs}>
-            <TouchableOpacity style={[styles.tab, mode === 'login' && styles.activeTab]} onPress={() => setMode('login')}>
+            <TouchableOpacity
+              style={[styles.tab, mode === 'login' && styles.activeTab]}
+              onPress={() => setMode('login')}
+            >
               <Text style={[styles.tabText, mode === 'login' && styles.activeTabText]}>Вход</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.tab, mode === 'register' && styles.activeTab]} onPress={() => setMode('register')}>
+            <TouchableOpacity
+              style={[styles.tab, mode === 'register' && styles.activeTab]}
+              onPress={() => setMode('register')}
+            >
               <Text style={[styles.tabText, mode === 'register' && styles.activeTabText]}>Регистрация</Text>
             </TouchableOpacity>
           </View>
@@ -83,17 +89,29 @@ export default function AuthScreen() {
           {mode === 'register' && (
             <View style={styles.roleRow}>
               <Text style={styles.roleLabel}>Роль:</Text>
-              <TouchableOpacity style={[styles.roleBtn, role === 'worker' && styles.activeRole]} onPress={() => setRole('worker')}>
+              <TouchableOpacity
+                style={[styles.roleBtn, role === 'worker' && styles.activeRole]}
+                onPress={() => setRole('worker')}
+              >
                 <Text style={[styles.roleBtnText, role === 'worker' && styles.activeRoleTxt]}>Монтажник</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.roleBtn, role === 'manager' && styles.activeRole]} onPress={() => setRole('manager')}>
+              <TouchableOpacity
+                style={[styles.roleBtn, role === 'manager' && styles.activeRole]}
+                onPress={() => setRole('manager')}
+              >
                 <Text style={[styles.roleBtnText, role === 'manager' && styles.activeRoleTxt]}>Менеджер</Text>
               </TouchableOpacity>
             </View>
           )}
 
-          <TouchableOpacity style={[styles.btn, loading && styles.btnDisabled]} onPress={handleSubmit} disabled={loading}>
-            <Text style={styles.btnText}>{loading ? 'Загрузка...' : mode === 'login' ? 'Войти' : 'Зарегистрироваться'}</Text>
+          <TouchableOpacity
+            style={[styles.btn, loading && styles.btnDisabled]}
+            onPress={handleSubmit}
+            disabled={loading}
+          >
+            <Text style={styles.btnText}>
+              {loading ? 'Загрузка...' : mode === 'login' ? 'Войти' : 'Зарегистрироваться'}
+            </Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
