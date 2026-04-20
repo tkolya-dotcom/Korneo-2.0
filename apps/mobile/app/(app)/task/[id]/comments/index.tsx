@@ -3,9 +3,7 @@ import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, Activity
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { commentsApi } from '@/src/lib/supabase';
-
-// Cyberpunk theme
-const C = { bg: '#0A0A0F', card: '#1A1A2E', accent: '#00D9FF', text: '#E0E0E0', sub: '#8892a0', border: 'rgba(0, 217, 255, 0.15)', green: '#00FF88' };
+import { COLORS } from '@/src/theme/colors';
 
 export default function TaskCommentsScreen() {
   const { id } = useLocalSearchParams();
@@ -68,7 +66,7 @@ export default function TaskCommentsScreen() {
   const isOwn = (authorId: string) => authorId === user?.id;
 
   if (loading) {
-    return <View style={s.center}><ActivityIndicator color={C.accent} size="large" /></View>;
+    return <View style={s.center}><ActivityIndicator color={COLORS.accent} size="large" /></View>;
   }
 
   return (
@@ -101,7 +99,7 @@ export default function TaskCommentsScreen() {
         <TextInput
           style={s.input}
           placeholder="Написать комментарий..."
-          placeholderTextColor={C.sub}
+          placeholderTextColor={COLORS.sub}
           value={inputText}
           onChangeText={setInputText}
           multiline
@@ -120,23 +118,23 @@ export default function TaskCommentsScreen() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.bg },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 16, paddingTop: 50, backgroundColor: C.card, borderBottomWidth: 1, borderBottomColor: C.border },
-  backBtn: { color: C.accent, fontSize: 24, marginRight: 16 },
-  headerTitle: { color: C.text, fontSize: 18, fontWeight: '600', flex: 1 },
-  count: { color: C.sub, fontSize: 14 },
+  container: { flex: 1, backgroundColor: COLORS.bg },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.bg },
+  header: { flexDirection: 'row', alignItems: 'center', padding: 16, paddingTop: 50, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  backBtn: { color: COLORS.accent, fontSize: 24, marginRight: 16 },
+  headerTitle: { color: COLORS.text, fontSize: 18, fontWeight: '600', flex: 1 },
+  count: { color: COLORS.sub, fontSize: 14 },
   list: { padding: 16, flexGrow: 1 },
-  empty: { color: C.sub, textAlign: 'center', marginTop: 40 },
-  comment: { backgroundColor: C.card, borderRadius: 12, padding: 12, marginBottom: 10, borderLeftWidth: 3, borderLeftColor: C.accent },
-  commentOwn: { borderLeftColor: C.green, backgroundColor: 'rgba(0, 255, 136, 0.1)' },
+  empty: { color: COLORS.sub, textAlign: 'center', marginTop: 40 },
+  comment: { backgroundColor: COLORS.card, borderRadius: 12, padding: 12, marginBottom: 10, borderLeftWidth: 3, borderLeftColor: COLORS.accent },
+  commentOwn: { borderLeftColor: COLORS.green, backgroundColor: 'rgba(0, 255, 136, 0.1)' },
   commentHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  authorName: { color: C.accent, fontSize: 12, fontWeight: '600' },
-  commentDate: { color: C.sub, fontSize: 10 },
-  commentText: { color: C.text, fontSize: 14, lineHeight: 20 },
-  inputArea: { flexDirection: 'row', padding: 12, backgroundColor: C.card, borderTopWidth: 1, borderTopColor: C.border, alignItems: 'flex-end' },
-  input: { flex: 1, backgroundColor: C.bg, color: C.text, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, fontSize: 14, maxHeight: 80, borderWidth: 1, borderColor: C.border },
-  sendBtn: { backgroundColor: C.accent, width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginLeft: 8 },
-  sendBtnDisabled: { backgroundColor: C.sub },
-  sendBtnText: { color: C.bg, fontSize: 20, fontWeight: '700' },
+  authorName: { color: COLORS.accent, fontSize: 12, fontWeight: '600' },
+  commentDate: { color: COLORS.sub, fontSize: 10 },
+  commentText: { color: COLORS.text, fontSize: 14, lineHeight: 20 },
+  inputArea: { flexDirection: 'row', padding: 12, backgroundColor: COLORS.card, borderTopWidth: 1, borderTopColor: COLORS.border, alignItems: 'flex-end' },
+  input: { flex: 1, backgroundColor: COLORS.bg, color: COLORS.text, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, fontSize: 14, maxHeight: 80, borderWidth: 1, borderColor: COLORS.border },
+  sendBtn: { backgroundColor: COLORS.accent, width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginLeft: 8 },
+  sendBtnDisabled: { backgroundColor: COLORS.sub },
+  sendBtnText: { color: COLORS.bg, fontSize: 20, fontWeight: '700' },
 });

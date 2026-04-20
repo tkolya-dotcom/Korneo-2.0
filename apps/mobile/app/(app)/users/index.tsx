@@ -2,9 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { authApi } from '@/src/lib/supabase';
-
-// Cyberpunk theme
-const C = { bg: '#0A0A0F', card: '#1A1A2E', accent: '#00D9FF', text: '#E0E0E0', sub: '#8892a0', border: 'rgba(0, 217, 255, 0.15)', green: '#00FF88', danger: '#FF3366' };
+import { COLORS } from '@/src/theme/colors';
 
 const ROLE_LABELS: Record<string, string> = {
   worker: 'Монтажник',
@@ -54,7 +52,7 @@ export default function UsersScreen() {
   };
 
   if (loading) {
-    return <View style={s.center}><ActivityIndicator color={C.accent} size="large" /></View>;
+    return <View style={s.center}><ActivityIndicator color={COLORS.accent} size="large" /></View>;
   }
 
   return (
@@ -67,12 +65,12 @@ export default function UsersScreen() {
       <FlatList
         data={users}
         keyExtractor={item => item.id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.accent} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.accent} />}
         contentContainerStyle={{ padding: 16 }}
         ListEmptyComponent={<Text style={s.empty}>Сотрудников нет</Text>}
         renderItem={({ item }) => (
           <View style={[s.userCard, item.id === user?.id && s.userCardSelf]}>
-            <View style={[s.avatar, { backgroundColor: ROLE_COLORS[item.role] || C.sub }]}>
+            <View style={[s.avatar, { backgroundColor: ROLE_COLORS[item.role] || COLORS.sub }]}>
               <Text style={s.avatarText}>{getInitials(item.name || item.email)}</Text>
               {item.is_online && <View style={s.onlineDot} />}
             </View>
@@ -82,8 +80,8 @@ export default function UsersScreen() {
                 {item.id === user?.id && <Text style={s.youLabel}> (Вы)</Text>}
               </Text>
               <Text style={s.userEmail}>{item.email}</Text>
-              <View style={[s.roleBadge, { borderColor: ROLE_COLORS[item.role] || C.sub }]}>
-                <Text style={[s.roleText, { color: ROLE_COLORS[item.role] || C.sub }]}>
+              <View style={[s.roleBadge, { borderColor: ROLE_COLORS[item.role] || COLORS.sub }]}>
+                <Text style={[s.roleText, { color: ROLE_COLORS[item.role] || COLORS.sub }]}>
                   {ROLE_LABELS[item.role] || item.role}
                 </Text>
               </View>
@@ -101,23 +99,23 @@ export default function UsersScreen() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.bg },
+  container: { flex: 1, backgroundColor: COLORS.bg },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.bg },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingTop: 50 },
-title: { color: C.accent, fontSize: 26, fontWeight: '700' },
-  count: { color: C.sub, fontSize: 16 },
-  userCard: { flexDirection: 'row', backgroundColor: C.card, borderRadius: 12, padding: 14, marginBottom: 10, alignItems: 'center' },
-  userCardSelf: { borderWidth: 1, borderColor: C.accent },
+title: { color: COLORS.accent, fontSize: 26, fontWeight: '700' },
+  count: { color: COLORS.sub, fontSize: 16 },
+  userCard: { flexDirection: 'row', backgroundColor: COLORS.card, borderRadius: 12, padding: 14, marginBottom: 10, alignItems: 'center' },
+  userCardSelf: { borderWidth: 1, borderColor: COLORS.accent },
   avatar: { width: 52, height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', position: 'relative' },
   avatarText: { color: '#fff', fontSize: 18, fontWeight: '700' },
-  onlineDot: { position: 'absolute', bottom: 2, right: 2, width: 12, height: 12, borderRadius: 6, backgroundColor: '#34C759', borderWidth: 2, borderColor: C.card },
+  onlineDot: { position: 'absolute', bottom: 2, right: 2, width: 12, height: 12, borderRadius: 6, backgroundColor: '#34C759', borderWidth: 2, borderColor: COLORS.card },
   userInfo: { flex: 1, marginLeft: 14 },
-  userName: { color: C.text, fontSize: 15, fontWeight: '600' },
-  youLabel: { color: C.accent, fontSize: 12 },
-  userEmail: { color: C.sub, fontSize: 12, marginTop: 2 },
+  userName: { color: COLORS.text, fontSize: 15, fontWeight: '600' },
+  youLabel: { color: COLORS.accent, fontSize: 12 },
+  userEmail: { color: COLORS.sub, fontSize: 12, marginTop: 2 },
   roleBadge: { alignSelf: 'flex-start', borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, marginTop: 6 },
   roleText: { fontSize: 11, fontWeight: '600' },
   onlineStatus: { padding: 4 },
   onlineText: { fontSize: 16 },
-  empty: { color: C.sub, textAlign: 'center', marginTop: 60, fontSize: 16 },
+  empty: { color: COLORS.sub, textAlign: 'center', marginTop: 60, fontSize: 16 },
 });

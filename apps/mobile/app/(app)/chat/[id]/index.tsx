@@ -3,9 +3,7 @@ import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, Keyboard
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { chatsApi } from '@/src/lib/supabase';
-
-// Cyberpunk theme
-const C = { bg: '#0A0A0F', card: '#1A1A2E', accent: '#00D9FF', text: '#E0E0E0', sub: '#8892a0', border: 'rgba(0, 217, 255, 0.15)', purple: '#8B5CF6' };
+import { COLORS } from '@/src/theme/colors';
 
 export default function ChatDetailScreen() {
   const { id } = useLocalSearchParams();
@@ -68,7 +66,7 @@ export default function ChatDetailScreen() {
   const isOwn = (senderId: string) => senderId === user?.id;
 
   if (loading) {
-    return <View style={s.center}><ActivityIndicator color={C.accent} size="large" /></View>;
+    return <View style={s.center}><ActivityIndicator color={COLORS.accent} size="large" /></View>;
   }
 
   return (
@@ -102,7 +100,7 @@ export default function ChatDetailScreen() {
         <TextInput
           style={s.input}
           placeholder="Сообщение..."
-          placeholderTextColor={C.sub}
+          placeholderTextColor={COLORS.sub}
           value={inputText}
           onChangeText={setInputText}
           multiline
@@ -117,23 +115,23 @@ export default function ChatDetailScreen() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.bg },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 16, paddingTop: 50, backgroundColor: C.card, borderBottomWidth: 1, borderBottomColor: C.border },
-  backBtn: { color: C.accent, fontSize: 24, marginRight: 16 },
-  headerTitle: { color: C.text, fontSize: 18, fontWeight: '600', flex: 1 },
+  container: { flex: 1, backgroundColor: COLORS.bg },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.bg },
+  header: { flexDirection: 'row', alignItems: 'center', padding: 16, paddingTop: 50, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  backBtn: { color: COLORS.accent, fontSize: 24, marginRight: 16 },
+  headerTitle: { color: COLORS.text, fontSize: 18, fontWeight: '600', flex: 1 },
   messagesList: { padding: 16, flexGrow: 1 },
-  empty: { color: C.sub, textAlign: 'center', marginTop: 40 },
-  message: { maxWidth: '75%', backgroundColor: C.card, borderRadius: 16, borderBottomLeftRadius: 4, padding: 12, marginBottom: 8, alignSelf: 'flex-start' },
-  messageOwn: { backgroundColor: C.purple, borderBottomLeftRadius: 16, borderBottomRightRadius: 4, alignSelf: 'flex-end' },
-  senderName: { color: C.accent, fontSize: 11, fontWeight: '600', marginBottom: 4 },
-  messageText: { color: C.text, fontSize: 15, lineHeight: 20 },
+  empty: { color: COLORS.sub, textAlign: 'center', marginTop: 40 },
+  message: { maxWidth: '75%', backgroundColor: COLORS.card, borderRadius: 16, borderBottomLeftRadius: 4, padding: 12, marginBottom: 8, alignSelf: 'flex-start' },
+  messageOwn: { backgroundColor: COLORS.purple, borderBottomLeftRadius: 16, borderBottomRightRadius: 4, alignSelf: 'flex-end' },
+  senderName: { color: COLORS.accent, fontSize: 11, fontWeight: '600', marginBottom: 4 },
+  messageText: { color: COLORS.text, fontSize: 15, lineHeight: 20 },
   messageTextOwn: { color: '#fff' },
-  messageTime: { color: C.sub, fontSize: 10, marginTop: 4, alignSelf: 'flex-end' },
+  messageTime: { color: COLORS.sub, fontSize: 10, marginTop: 4, alignSelf: 'flex-end' },
   messageTimeOwn: { color: 'rgba(255,255,255,0.6)' },
-  inputArea: { flexDirection: 'row', padding: 12, backgroundColor: C.card, borderTopWidth: 1, borderTopColor: C.border, alignItems: 'flex-end' },
-  input: { flex: 1, backgroundColor: C.bg, color: C.text, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, fontSize: 15, maxHeight: 100 },
-  sendBtn: { backgroundColor: C.accent, width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginLeft: 8 },
-  sendBtnDisabled: { backgroundColor: C.sub },
-  sendBtnText: { color: C.bg, fontSize: 20, fontWeight: '700' },
+  inputArea: { flexDirection: 'row', padding: 12, backgroundColor: COLORS.card, borderTopWidth: 1, borderTopColor: COLORS.border, alignItems: 'flex-end' },
+  input: { flex: 1, backgroundColor: COLORS.bg, color: COLORS.text, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, fontSize: 15, maxHeight: 100 },
+  sendBtn: { backgroundColor: COLORS.accent, width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginLeft: 8 },
+  sendBtnDisabled: { backgroundColor: COLORS.sub },
+  sendBtnText: { color: COLORS.bg, fontSize: 20, fontWeight: '700' },
 });

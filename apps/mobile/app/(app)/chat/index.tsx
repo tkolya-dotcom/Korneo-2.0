@@ -3,9 +3,7 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, RefreshC
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { chatsApi } from '@/src/lib/supabase';
-
-// Cyberpunk theme
-const C = { bg: '#0A0A0F', card: '#1A1A2E', accent: '#00D9FF', text: '#E0E0E0', sub: '#8892a0', border: 'rgba(0, 217, 255, 0.15)', green: '#00FF88' };
+import { COLORS } from '@/src/theme/colors';
 
 export default function ChatListScreen() {
   const { user } = useAuth();
@@ -60,7 +58,7 @@ export default function ChatListScreen() {
   };
 
   if (loading) {
-    return <View style={s.center}><ActivityIndicator color={C.accent} size="large" /></View>;
+    return <View style={s.center}><ActivityIndicator color={COLORS.accent} size="large" /></View>;
   }
 
   return (
@@ -74,7 +72,7 @@ export default function ChatListScreen() {
 
       {showNewChat && (
         <View style={s.newChatBox}>
-          <TextInput style={s.newChatInput} placeholder="Название чата" placeholderTextColor={C.sub}
+          <TextInput style={s.newChatInput} placeholder="Название чата" placeholderTextColor={COLORS.sub}
             value={newChatName} onChangeText={setNewChatName} autoFocus />
           <TouchableOpacity style={s.createBtn} onPress={createChat}>
             <Text style={s.createBtnText}>Создать</Text>
@@ -88,7 +86,7 @@ export default function ChatListScreen() {
       <FlatList
         data={chats}
         keyExtractor={item => item.id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.accent} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.accent} />}
         contentContainerStyle={{ padding: 16 }}
         ListEmptyComponent={<Text style={s.empty}>Нет чатов</Text>}
         renderItem={({ item }) => (
@@ -109,23 +107,23 @@ export default function ChatListScreen() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.bg },
+  container: { flex: 1, backgroundColor: COLORS.bg },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.bg },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 50 },
-  title: { color: C.accent, fontSize: 26, fontWeight: '700' },
+  title: { color: COLORS.accent, fontSize: 26, fontWeight: '700' },
   addIcon: { fontSize: 24 },
-  newChatBox: { flexDirection: 'row', padding: 12, backgroundColor: C.card, borderBottomWidth: 1, borderBottomColor: C.border },
-  newChatInput: { flex: 1, backgroundColor: C.bg, color: C.text, borderRadius: 8, padding: 10, fontSize: 14 },
-  createBtn: { backgroundColor: C.accent, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, marginLeft: 8 },
-  createBtnText: { color: C.bg, fontWeight: '600' },
-  cancelBtn: { color: C.sub, paddingHorizontal: 12, paddingVertical: 10 },
-  chatItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.card, borderRadius: 12, padding: 14, marginBottom: 10 },
-  avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: C.accent, justifyContent: 'center', alignItems: 'center' },
+  newChatBox: { flexDirection: 'row', padding: 12, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  newChatInput: { flex: 1, backgroundColor: COLORS.bg, color: COLORS.text, borderRadius: 8, padding: 10, fontSize: 14 },
+  createBtn: { backgroundColor: COLORS.accent, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, marginLeft: 8 },
+  createBtnText: { color: COLORS.bg, fontWeight: '600' },
+  cancelBtn: { color: COLORS.sub, paddingHorizontal: 12, paddingVertical: 10 },
+  chatItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 12, padding: 14, marginBottom: 10 },
+  avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center' },
   groupAvatar: { backgroundColor: '#8B5CF6' },
-  avatarText: { color: C.bg, fontSize: 16, fontWeight: '700' },
+  avatarText: { color: COLORS.bg, fontSize: 16, fontWeight: '700' },
   chatInfo: { flex: 1, marginLeft: 12 },
-  chatName: { color: C.text, fontSize: 15, fontWeight: '600' },
-  chatType: { color: C.sub, fontSize: 12, marginTop: 2 },
-  chatTime: { color: C.sub, fontSize: 11 },
-  empty: { color: C.sub, textAlign: 'center', marginTop: 60, fontSize: 16 },
+  chatName: { color: COLORS.text, fontSize: 15, fontWeight: '600' },
+  chatType: { color: COLORS.sub, fontSize: 12, marginTop: 2 },
+  chatTime: { color: COLORS.sub, fontSize: 11 },
+  empty: { color: COLORS.sub, textAlign: 'center', marginTop: 60, fontSize: 16 },
 });

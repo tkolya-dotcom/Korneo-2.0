@@ -3,9 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert,
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { installationsApi, projectsApi, authApi } from '@/src/lib/supabase';
-
-// Cyberpunk theme
-const C = { bg: '#0A0A0F', card: '#1A1A2E', accent: '#00D9FF', text: '#E0E0E0', sub: '#8892a0', border: 'rgba(0, 217, 255, 0.15)', danger: '#FF3366', green: '#00FF88' };
+import { COLORS } from '@/src/theme/colors';
 
 export default function InstallationCreateScreen() {
   const { user, canCreateTasks } = useAuth();
@@ -107,11 +105,11 @@ export default function InstallationCreateScreen() {
 
       <View style={s.form}>
         <Text style={s.label}>Адрес *</Text>
-        <TextInput style={s.input} placeholder="Адрес монтажа" placeholderTextColor={C.sub}
+        <TextInput style={s.input} placeholder="Адрес монтажа" placeholderTextColor={COLORS.sub}
           value={address} onChangeText={setAddress} />
 
         <Text style={s.label}>Описание</Text>
-        <TextInput style={[s.input, s.textarea]} placeholder="Описание работ" placeholderTextColor={C.sub}
+        <TextInput style={[s.input, s.textarea]} placeholder="Описание работ" placeholderTextColor={COLORS.sub}
           value={description} onChangeText={setDescription} multiline numberOfLines={3} />
 
         <Text style={s.label}>Проект</Text>
@@ -139,7 +137,7 @@ export default function InstallationCreateScreen() {
         </View>
 
         <Text style={s.label}>Плановая дата</Text>
-        <TextInput style={s.input} placeholder="ГГГГ-ММ-ДД" placeholderTextColor={C.sub}
+        <TextInput style={s.input} placeholder="ГГГГ-ММ-ДД" placeholderTextColor={COLORS.sub}
           value={plannedDate} onChangeText={setPlannedDate} />
 
         {/* Оборудование СК */}
@@ -153,9 +151,9 @@ export default function InstallationCreateScreen() {
         {equipment.map((eq, index) => (
           <View key={index} style={s.equipmentRow}>
             <TextInput style={[s.input, { flex: 1, marginBottom: 0 }]} placeholder={`ID СК ${index + 1}`} 
-              placeholderTextColor={C.sub} value={eq.id} onChangeText={(v) => updateEquipment(index, 'id', v)} />
+              placeholderTextColor={COLORS.sub} value={eq.id} onChangeText={(v) => updateEquipment(index, 'id', v)} />
             <TextInput style={[s.input, { flex: 2, marginBottom: 0 }]} placeholder="Наименование" 
-              placeholderTextColor={C.sub} value={eq.name} onChangeText={(v) => updateEquipment(index, 'name', v)} />
+              placeholderTextColor={COLORS.sub} value={eq.name} onChangeText={(v) => updateEquipment(index, 'name', v)} />
             <TouchableOpacity onPress={() => removeEquipment(index)} style={s.removeBtn}>
               <Text style={s.removeBtnText}>✕</Text>
             </TouchableOpacity>
@@ -163,7 +161,7 @@ export default function InstallationCreateScreen() {
         ))}
 
         <TouchableOpacity style={[s.btn, loading && s.btnDisabled]} onPress={handleSubmit} disabled={loading}>
-          {loading ? <ActivityIndicator color={C.bg} /> : <Text style={s.btnText}>СОЗДАТЬ МОНТАЖ</Text>}
+          {loading ? <ActivityIndicator color={COLORS.bg} /> : <Text style={s.btnText}>СОЗДАТЬ МОНТАЖ</Text>}
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -171,24 +169,24 @@ export default function InstallationCreateScreen() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
+  container: { flex: 1, backgroundColor: COLORS.bg },
   content: { paddingBottom: 40 },
   header: { flexDirection: 'row', alignItems: 'center', padding: 20, paddingTop: 50 },
-  backBtn: { color: C.accent, fontSize: 16 },
-  title: { color: C.accent, fontSize: 22, fontWeight: '700', marginLeft: 20 },
+  backBtn: { color: COLORS.accent, fontSize: 16 },
+  title: { color: COLORS.accent, fontSize: 22, fontWeight: '700', marginLeft: 20 },
   form: { padding: 20 },
-  label: { color: C.accent, fontSize: 13, fontWeight: '600', marginBottom: 8, letterSpacing: 0.5 },
-  input: { backgroundColor: C.card, color: C.text, borderRadius: 10, padding: 14, marginBottom: 16, fontSize: 15, borderWidth: 1, borderColor: C.border },
+  label: { color: COLORS.accent, fontSize: 13, fontWeight: '600', marginBottom: 8, letterSpacing: 0.5 },
+  input: { backgroundColor: COLORS.card, color: COLORS.text, borderRadius: 10, padding: 14, marginBottom: 16, fontSize: 15, borderWidth: 1, borderColor: COLORS.border },
   textarea: { minHeight: 80, textAlignVertical: 'top' },
   selectWrap: { marginBottom: 16 },
-  select: { backgroundColor: C.card, borderRadius: 10, padding: 14, borderWidth: 1, borderColor: C.border },
-  selectText: { color: C.text, fontSize: 15 },
+  select: { backgroundColor: COLORS.card, borderRadius: 10, padding: 14, borderWidth: 1, borderColor: COLORS.border },
+  selectText: { color: COLORS.text, fontSize: 15 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
-  addBtn: { color: C.green, fontSize: 13, fontWeight: '600' },
+  addBtn: { color: COLORS.green, fontSize: 13, fontWeight: '600' },
   equipmentRow: { flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 8 },
   removeBtn: { padding: 10 },
-  removeBtnText: { color: C.danger, fontSize: 16 },
-  btn: { backgroundColor: C.accent, paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 16 },
+  removeBtnText: { color: COLORS.danger, fontSize: 16 },
+  btn: { backgroundColor: COLORS.accent, paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 16 },
   btnDisabled: { opacity: 0.6 },
-  btnText: { color: C.bg, fontSize: 16, fontWeight: '700', letterSpacing: 1 },
+  btnText: { color: COLORS.bg, fontSize: 16, fontWeight: '700', letterSpacing: 1 },
 });

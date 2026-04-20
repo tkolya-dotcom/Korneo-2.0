@@ -2,8 +2,16 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/src/providers/AuthProvider';
+import { COLORS } from '@/src/theme/colors';
 
-const COLORS = { bg: '#0f172a', card: '#1e293b', accent: '#02d7ff', text: '#e8f1ff', sub: '#9ab0c5', border: '#1e2a35', red: '#ef4444' };
+// Маппинг ошибок авторизации
+const mapAuthError = (message: string): string => {
+  if (message.includes('Invalid login credentials')) return 'Неверный email или пароль';
+  if (message.includes('User already registered')) return 'Пользователь с таким email уже существует';
+  if (message.includes('Email not confirmed')) return 'Email не подтверждён';
+  if (message.includes('reCAPTCHA')) return 'Ошибка проверки. Попробуйте снова';
+  return message;
+};
 
 export default function AuthScreen() {
   const { signIn, register } = useAuth();
@@ -53,6 +61,7 @@ export default function AuthScreen() {
             <TouchableOpacity style={[styles.tab, mode === 'login' && styles.activeTab]} onPress={() => { setMode('login'); setError(''); }}>
               <Text style={[styles.tabText, mode === 'login' && styles.activeTabText]}>Вход</Text>
             </TouchableOpacity>
+
             <TouchableOpacity style={[styles.tab, mode === 'register' && styles.activeTab]} onPress={() => { setMode('register'); setError(''); }}>
               <Text style={[styles.tabText, mode === 'register' && styles.activeTabText]}>Регистрация</Text>
             </TouchableOpacity>
@@ -61,13 +70,13 @@ export default function AuthScreen() {
           {error ? <View style={styles.errorBox}><Text style={styles.errorText}>{error}</Text></View> : null}
 
           {mode === 'register' && (
-            <TextInput style={styles.input} placeholder="Имя" placeholderTextColor={C.sub} value={name} onChangeText={setName} />
+            <TextInput style={styles.input} placeholder="Имя" placeholderTextColor={COLORS.sub} value={name} onChangeText={setName} />
           )}
 
-          <TextInput style={styles.input} placeholder="Email" placeholderTextColor={C.sub} value={email}
+          <TextInput style={styles.input} placeholder="Email" placeholderTextColor={COLORS.sub} value={email}
             onChangeText={(text) => { setEmail(text); setError(''); }} autoCapitalize="none" keyboardType="email-address" />
 
-          <TextInput style={styles.input} placeholder="Пароль" placeholderTextColor={C.sub} value={password}
+          <TextInput style={styles.input} placeholder="Пароль" placeholderTextColor={COLORS.sub} value={password}
             onChangeText={(text) => { setPassword(text); setError(''); }} secureTextEntry />
 
           {mode === 'register' && (
@@ -76,6 +85,7 @@ export default function AuthScreen() {
               <TouchableOpacity style={[styles.roleBtn, role === 'worker' && styles.activeRole]} onPress={() => setRole('worker')}>
                 <Text style={[styles.roleBtnText, role === 'worker' && styles.activeRoleTxt]}>Монтажник</Text>
               </TouchableOpacity>
+
               <TouchableOpacity
                 style={[styles.roleBtn, role === 'engineer' && styles.activeRole]}
                 onPress={() => setRole('engineer')}
@@ -97,28 +107,28 @@ export default function AuthScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
+  container: { flex: 1, backgroundColor: COLORS.bg },
   scroll: { flexGrow: 1, justifyContent: 'center', padding: 24 },
   logoBox: { alignItems: 'center', marginBottom: 40 },
-  logo: { color: C.accent, fontSize: 42, fontWeight: '800', letterSpacing: 3, textShadowColor: C.accent, textShadowRadius: 20 },
-  tagline: { color: C.sub, fontSize: 14, marginTop: 8 },
-  card: { backgroundColor: C.card, borderRadius: 16, padding: 24, borderWidth: 1, borderColor: C.border },
-  tabs: { flexDirection: 'row', marginBottom: 20, backgroundColor: C.bg, borderRadius: 10, padding: 4 },
+  logo: { color: COLORS.accent, fontSize: 42, fontWeight: '800', letterSpacing: 3, textShadowColor: COLORS.accent, textShadowRadius: 20 },
+  tagline: { color: COLORS.sub, fontSize: 14, marginTop: 8 },
+  card: { backgroundColor: COLORS.card, borderRadius: 16, padding: 24, borderWidth: 1, borderColor: COLORS.border },
+  tabs: { flexDirection: 'row', marginBottom: 20, backgroundColor: COLORS.bg, borderRadius: 10, padding: 4 },
   tab: { flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
-  activeTab: { backgroundColor: C.accent },
-  tabText: { color: C.sub, fontWeight: '600', fontSize: 14 },
-  activeTabText: { color: C.bg, fontWeight: '700' },
-  errorBox: { backgroundColor: 'rgba(255, 51, 102, 0.1)', borderWidth: 1, borderColor: C.danger, borderRadius: 8, padding: 12, marginBottom: 12 },
-  errorText: { color: C.danger, fontSize: 13, textAlign: 'center' },
-  input: { backgroundColor: C.bg, color: C.text, borderWidth: 1, borderColor: C.border, borderRadius: 10, padding: 14, marginBottom: 12, fontSize: 15 },
+  activeTab: { backgroundColor: COLORS.accent },
+  tabText: { color: COLORS.sub, fontWeight: '600', fontSize: 14 },
+  activeTabText: { color: COLORS.bg, fontWeight: '700' },
+  errorBox: { backgroundColor: 'rgba(255, 51, 102, 0.1)', borderWidth: 1, borderColor: COLORS.danger, borderRadius: 8, padding: 12, marginBottom: 12 },
+  errorText: { color: COLORS.danger, fontSize: 13, textAlign: 'center' },
+  input: { backgroundColor: COLORS.bg, color: COLORS.text, borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, padding: 14, marginBottom: 12, fontSize: 15 },
   roleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 8 },
-  roleLabel: { color: C.sub, fontSize: 14 },
-  roleBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: C.border, alignItems: 'center' },
-  activeRole: { borderColor: C.accent, backgroundColor: 'rgba(0, 217, 255, 0.1)' },
-  roleBtnText: { color: C.sub, fontSize: 13, fontWeight: '600' },
-  activeRoleTxt: { color: C.accent },
-  btn: { backgroundColor: C.accent, paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
+  roleLabel: { color: COLORS.sub, fontSize: 14 },
+  roleBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center' },
+  activeRole: { borderColor: COLORS.accent, backgroundColor: 'rgba(0, 217, 255, 0.1)' },
+  roleBtnText: { color: COLORS.sub, fontSize: 13, fontWeight: '600' },
+  activeRoleTxt: { color: COLORS.accent },
+  btn: { backgroundColor: COLORS.accent, paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
   btnDisabled: { opacity: 0.6 },
-  btnText: { color: C.bg, fontSize: 16, fontWeight: '700', letterSpacing: 1 },
-  hint: { color: C.sub, fontSize: 11, textAlign: 'center', marginTop: 16 },
+  btnText: { color: COLORS.bg, fontSize: 16, fontWeight: '700', letterSpacing: 1 },
+  hint: { color: COLORS.sub, fontSize: 11, textAlign: 'center', marginTop: 16 },
 });

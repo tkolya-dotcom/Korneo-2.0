@@ -3,11 +3,11 @@ import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { installationsApi } from '@/src/lib/supabase';
+import { COLORS } from '@/src/theme/colors';
 
-const C = { bg: '#0f172a', card: '#1e293b', accent: '#02d7ff', text: '#e8f1ff', sub: '#9ab0c5', border: '#1e2a35', green: '#22c55e', yellow: '#f59e0b', orange: '#f97316', red: '#ef4444' };
 const STATUS_OPTIONS = ['pending', 'in_progress', 'completed', 'cancelled'];
 const statusLabel = (s: string) => ({ pending: 'Ожидает', in_progress: 'В работе', completed: 'Завершён', cancelled: 'Отменён', active: 'Активный' }[s] || s);
-const statusColor = (s: string) => ({ pending: C.yellow, in_progress: C.orange, completed: C.green, cancelled: C.sub, active: C.green }[s] || C.sub);
+const statusColor = (s: string) => ({ pending: COLORS.yellow, in_progress: COLORS.orange, completed: COLORS.green, cancelled: COLORS.sub, active: COLORS.green }[s] || COLORS.sub);
 
 export default function InstallationDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -31,7 +31,7 @@ export default function InstallationDetailScreen() {
     } finally { setUpdating(false); }
   };
 
-  if (loading) return <View style={s.center}><ActivityIndicator color={C.accent} size="large" /></View>;
+  if (loading) return <View style={s.center}><ActivityIndicator color={COLORS.accent} size="large" /></View>;
   if (!item) return <View style={s.center}><Text style={s.sub}>Монтаж не найден</Text></View>;
 
   return (
@@ -89,23 +89,23 @@ export default function InstallationDetailScreen() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.bg },
+  container: { flex: 1, backgroundColor: COLORS.bg },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.bg },
   backBtn: { padding: 16, paddingTop: 48 },
-  backText: { color: C.accent, fontSize: 16 },
-  card: { backgroundColor: C.card, margin: 16, marginTop: 0, borderRadius: 16, padding: 16, marginBottom: 12 },
+  backText: { color: COLORS.accent, fontSize: 16 },
+  card: { backgroundColor: COLORS.card, margin: 16, marginTop: 0, borderRadius: 16, padding: 16, marginBottom: 12 },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   badgeText: { color: '#fff', fontSize: 11, fontWeight: '600' },
-  title: { color: C.text, fontSize: 20, fontWeight: '700', lineHeight: 28 },
-  desc: { color: C.sub, fontSize: 14, marginTop: 8 },
-  sectionTitle: { color: C.text, fontSize: 15, fontWeight: '600', marginBottom: 12 },
+  title: { color: COLORS.text, fontSize: 20, fontWeight: '700', lineHeight: 28 },
+  desc: { color: COLORS.sub, fontSize: 14, marginTop: 8 },
+  sectionTitle: { color: COLORS.text, fontSize: 15, fontWeight: '600', marginBottom: 12 },
   row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
-  label: { color: C.sub, fontSize: 13 },
-  value: { color: C.text, fontSize: 13, fontWeight: '500', flex: 1, textAlign: 'right' },
-  sub: { color: C.sub, fontSize: 14 },
+  label: { color: COLORS.sub, fontSize: 13 },
+  value: { color: COLORS.text, fontSize: 13, fontWeight: '500', flex: 1, textAlign: 'right' },
+  sub: { color: COLORS.sub, fontSize: 14 },
   statusGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  statusBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: C.border },
-  statusBtnText: { color: C.sub, fontSize: 13, fontWeight: '500' },
-  listItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderTopWidth: 1, borderTopColor: C.border },
-  itemTitle: { color: C.text, fontSize: 13, flex: 1, marginRight: 8 },
+  statusBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: COLORS.border },
+  statusBtnText: { color: COLORS.sub, fontSize: 13, fontWeight: '500' },
+  listItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderTopWidth: 1, borderTopColor: COLORS.border },
+  itemTitle: { color: COLORS.text, fontSize: 13, flex: 1, marginRight: 8 },
 });

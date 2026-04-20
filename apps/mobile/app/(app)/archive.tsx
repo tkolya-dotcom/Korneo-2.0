@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { tasksApi, installationsApi } from '@/src/lib/supabase';
-
-const C = { bg: '#0f172a', card: '#1e293b', accent: '#02d7ff', text: '#e8f1ff', sub: '#9ab0c5', border: '#1e2a35' };
+import { COLORS } from '@/src/theme/colors';
 
 export default function ArchiveScreen() {
   const router = useRouter();
@@ -29,7 +28,7 @@ export default function ArchiveScreen() {
 
   const data = tab === 'tasks' ? tasks : installations;
 
-  if (loading) return <View style={s.center}><ActivityIndicator color={C.accent} size="large" /></View>;
+  if (loading) return <View style={s.center}><ActivityIndicator color={COLORS.accent} size="large" /></View>;
 
   return (
     <View style={s.container}>
@@ -47,7 +46,7 @@ export default function ArchiveScreen() {
       <FlatList
         data={data}
         keyExtractor={item => item.id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.accent} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.accent} />}
         contentContainerStyle={{ padding: 16 }}
         ListEmptyComponent={<Text style={s.empty}>Архив пуст</Text>}
         renderItem={({ item }) => (
@@ -65,17 +64,17 @@ export default function ArchiveScreen() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.bg },
+  container: { flex: 1, backgroundColor: COLORS.bg },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.bg },
   header: { padding: 20, paddingTop: 48 },
-  title: { color: C.text, fontSize: 26, fontWeight: '700' },
-  tabs: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 8, backgroundColor: C.card, borderRadius: 10, padding: 4 },
+  title: { color: COLORS.text, fontSize: 26, fontWeight: '700' },
+  tabs: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 8, backgroundColor: COLORS.card, borderRadius: 10, padding: 4 },
   tab: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
-  activeTab: { backgroundColor: C.accent },
-  tabText: { color: C.sub, fontWeight: '600', fontSize: 13 },
+  activeTab: { backgroundColor: COLORS.accent },
+  tabText: { color: COLORS.sub, fontWeight: '600', fontSize: 13 },
   activeTabText: { color: '#fff' },
-  card: { backgroundColor: C.card, borderRadius: 12, padding: 14, marginBottom: 10 },
-  cardTitle: { color: C.text, fontSize: 14, fontWeight: '600' },
-  sub: { color: C.sub, fontSize: 12, marginTop: 4 },
-  empty: { color: C.sub, textAlign: 'center', marginTop: 60, fontSize: 16 },
+  card: { backgroundColor: COLORS.card, borderRadius: 12, padding: 14, marginBottom: 10 },
+  cardTitle: { color: COLORS.text, fontSize: 14, fontWeight: '600' },
+  sub: { color: COLORS.sub, fontSize: 12, marginTop: 4 },
+  empty: { color: COLORS.sub, textAlign: 'center', marginTop: 60, fontSize: 16 },
 });

@@ -3,9 +3,7 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, RefreshC
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { materialsApi } from '@/src/lib/supabase';
-
-// Cyberpunk theme
-const C = { bg: '#0A0A0F', card: '#1A1A2E', accent: '#00D9FF', text: '#E0E0E0', sub: '#8892a0', border: 'rgba(0, 217, 255, 0.15)', green: '#00FF88', danger: '#FF3366' };
+import { COLORS } from '@/src/theme/colors';
 
 export default function WarehouseScreen() {
   const { isManagerOrHigher } = useAuth();
@@ -46,13 +44,13 @@ export default function WarehouseScreen() {
   );
 
   const getStockColor = (qty: number) => {
-    if (qty <= 0) return C.danger;
+    if (qty <= 0) return COLORS.danger;
     if (qty < 10) return '#FFA500';
-    return C.green;
+    return COLORS.green;
   };
 
   if (loading) {
-    return <View style={s.center}><ActivityIndicator color={C.accent} size="large" /></View>;
+    return <View style={s.center}><ActivityIndicator color={COLORS.accent} size="large" /></View>;
   }
 
   return (
@@ -64,13 +62,13 @@ export default function WarehouseScreen() {
         </TouchableOpacity>
       </View>
 
-      <TextInput style={s.search} placeholder="Поиск..." placeholderTextColor={C.sub}
+      <TextInput style={s.search} placeholder="Поиск..." placeholderTextColor={COLORS.sub}
         value={search} onChangeText={setSearch} />
 
       <FlatList
         data={filtered}
         keyExtractor={item => item.id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.accent} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.accent} />}
         contentContainerStyle={{ padding: 16 }}
         ListEmptyComponent={<Text style={s.empty}>Материалов нет</Text>}
         renderItem={({ item }) => (
@@ -92,19 +90,19 @@ export default function WarehouseScreen() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.bg },
+  container: { flex: 1, backgroundColor: COLORS.bg },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.bg },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 50 },
-  title: { color: C.accent, fontSize: 26, fontWeight: '700' },
-  issueBtn: { color: C.green, fontSize: 14, fontWeight: '600' },
-  search: { backgroundColor: C.card, color: C.text, borderRadius: 10, margin: 16, marginTop: 0, padding:12, fontSize: 14 },
-  materialCard: { flexDirection: 'row', backgroundColor: C.card, borderRadius: 12, padding: 16, marginBottom: 10 },
+  title: { color: COLORS.accent, fontSize: 26, fontWeight: '700' },
+  issueBtn: { color: COLORS.green, fontSize: 14, fontWeight: '600' },
+  search: { backgroundColor: COLORS.card, color: COLORS.text, borderRadius: 10, margin: 16, marginTop: 0, padding:12, fontSize: 14 },
+  materialCard: { flexDirection: 'row', backgroundColor: COLORS.card, borderRadius: 12, padding: 16, marginBottom: 10 },
   materialInfo: { flex: 1 },
-  materialName: { color: C.text, fontSize: 15, fontWeight: '600' },
-  materialCategory: { color: C.sub, fontSize: 12, marginTop: 4 },
-  materialUnit: { color: C.sub, fontSize: 11, marginTop: 2 },
+  materialName: { color: COLORS.text, fontSize: 15, fontWeight: '600' },
+  materialCategory: { color: COLORS.sub, fontSize: 12, marginTop: 4 },
+  materialUnit: { color: COLORS.sub, fontSize: 11, marginTop: 2 },
   stockSection: { alignItems: 'center', justifyContent: 'center' },
   stockQty: { fontSize: 24, fontWeight: '700' },
-  stockLabel: { color: C.sub, fontSize: 10 },
-  empty: { color: C.sub, textAlign: 'center', marginTop: 60, fontSize: 16 },
+  stockLabel: { color: COLORS.sub, fontSize: 10 },
+  empty: { color: COLORS.sub, textAlign: 'center', marginTop: 60, fontSize: 16 },
 });

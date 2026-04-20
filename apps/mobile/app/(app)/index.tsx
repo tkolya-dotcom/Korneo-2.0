@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { useAuth, ROLES } from '@/src/providers/AuthProvider';
 import { projectsApi, tasksApi, installationsApi, purchaseRequestsApi } from '@/src/lib/supabase';
 
-const COLORS = { bg: '#0f172a', card: '#1e293b', accent: '#02d7ff', text: '#e8f1ff', sub: '#9ab0c5', green: '#22c55e', yellow: '#f59e0b', red: '#ef4444', orange: '#f97316' };
+import { COLORS } from '@/src/theme/colors';
 
 const ROLE_LABELS: Record<string, string> = {
   worker: 'МОНТАЖНИК',

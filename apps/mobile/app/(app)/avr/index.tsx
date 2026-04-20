@@ -3,9 +3,7 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, RefreshC
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { tasksAvrApi, authApi } from '@/src/lib/supabase';
-
-// Cyberpunk theme
-const C = { bg: '#0A0A0F', card: '#1A1A2E', accent: '#00D9FF', text: '#E0E0E0', sub: '#8892a0', border: 'rgba(0, 217, 255, 0.15)', danger: '#FF3366', green: '#00FF88', orange: '#FFA500' };
+import { COLORS } from '@/src/theme/colors';
 
 const STATUS_COLORS: Record<string, string> = {
   new: '#3399ff',
@@ -85,7 +83,7 @@ export default function AVRScreen() {
   };
 
   if (loading) {
-    return <View style={s.center}><ActivityIndicator color={C.accent} size="large" /></View>;
+    return <View style={s.center}><ActivityIndicator color={COLORS.accent} size="large" /></View>;
   }
 
   return (
@@ -102,11 +100,11 @@ export default function AVRScreen() {
       {showCreate && (
         <View style={s.createForm}>
           <Text style={s.formTitle}>Новая задача АВР</Text>
-          <TextInput style={s.input} placeholder="Адрес *" placeholderTextColor={C.sub} value={address} onChangeText={setAddress} />
-          <TextInput style={s.input} placeholder="Описание" placeholderTextColor={C.sub} value={description} onChangeText={setDescription} />
-          <TextInput style={s.input} placeholder="Старое оборудование" placeholderTextColor={C.sub} value={oldEquipment} onChangeText={setOldEquipment} />
-          <TextInput style={s.input} placeholder="Новое оборудование" placeholderTextColor={C.sub} value={newEquipment} onChangeText={setNewEquipment} />
-          <TextInput style={s.input} placeholder="Причина замены" placeholderTextColor={C.sub} value={reason} onChangeText={setReason} />
+          <TextInput style={s.input} placeholder="Адрес *" placeholderTextColor={COLORS.sub} value={address} onChangeText={setAddress} />
+          <TextInput style={s.input} placeholder="Описание" placeholderTextColor={COLORS.sub} value={description} onChangeText={setDescription} />
+          <TextInput style={s.input} placeholder="Старое оборудование" placeholderTextColor={COLORS.sub} value={oldEquipment} onChangeText={setOldEquipment} />
+          <TextInput style={s.input} placeholder="Новое оборудование" placeholderTextColor={COLORS.sub} value={newEquipment} onChangeText={setNewEquipment} />
+          <TextInput style={s.input} placeholder="Причина замены" placeholderTextColor={COLORS.sub} value={reason} onChangeText={setReason} />
           <View style={s.formBtns}>
             <TouchableOpacity style={s.submitBtn} onPress={handleCreate}>
               <Text style={s.submitBtnText}>Создать</Text>
@@ -121,14 +119,14 @@ export default function AVRScreen() {
       <FlatList
         data={tasks}
         keyExtractor={item => item.id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.accent} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.accent} />}
         contentContainerStyle={{ padding: 16 }}
         ListEmptyComponent={<Text style={s.empty}>Задач АВР нет</Text>}
         renderItem={({ item }) => (
           <View style={s.taskCard}>
             <View style={s.taskHeader}>
               <Text style={s.taskId}>{item.short_id || item.id?.slice(0, 8)}</Text>
-              <View style={[s.statusBadge, { backgroundColor: STATUS_COLORS[item.status] || C.sub }]}>
+              <View style={[s.statusBadge, { backgroundColor: STATUS_COLORS[item.status] || COLORS.sub }]}>
                 <Text style={s.statusText}>{item.status}</Text>
               </View>
             </View>
@@ -144,25 +142,25 @@ export default function AVRScreen() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.bg },
+  container: { flex: 1, backgroundColor: COLORS.bg },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.bg },
   header: { flexDirection: 'row', justifyContent:'space-between', alignItems: 'center', padding: 20, paddingTop: 50 },
-  title: { color: C.accent, fontSize: 26, fontWeight: '700' },
-  addBtn: { color: C.green, fontSize: 14, fontWeight: '600' },
-  createForm: { backgroundColor: C.card, padding: 16, margin: 16, borderRadius: 12 },
-  formTitle: { color: C.accent, fontSize: 16, fontWeight: '600', marginBottom: 12 },
-  input: { backgroundColor: C.bg, color: C.text, borderRadius: 8, padding: 12, marginBottom: 8, fontSize: 14, borderWidth: 1, borderColor: C.border },
+  title: { color: COLORS.accent, fontSize: 26, fontWeight: '700' },
+  addBtn: { color: COLORS.green, fontSize: 14, fontWeight: '600' },
+  createForm: { backgroundColor: COLORS.card, padding: 16, margin: 16, borderRadius: 12 },
+  formTitle: { color: COLORS.accent, fontSize: 16, fontWeight: '600', marginBottom: 12 },
+  input: { backgroundColor: COLORS.bg, color: COLORS.text, borderRadius: 8, padding: 12, marginBottom: 8, fontSize: 14, borderWidth: 1, borderColor: COLORS.border },
   formBtns: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
-  submitBtn: { backgroundColor: C.accent, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
-  submitBtnText: { color: C.bg, fontWeight: '700' },
-  cancelBtn: { color: C.sub, marginLeft: 16 },
-  taskCard: { backgroundColor: C.card, borderRadius: 12, padding: 14, marginBottom: 10, borderLeftWidth: 3, borderLeftColor: C.orange },
+  submitBtn: { backgroundColor: COLORS.accent, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
+  submitBtnText: { color: COLORS.bg, fontWeight: '700' },
+  cancelBtn: { color: COLORS.sub, marginLeft: 16 },
+  taskCard: { backgroundColor: COLORS.card, borderRadius: 12, padding: 14, marginBottom: 10, borderLeftWidth: 3, borderLeftColor: COLORS.orange },
   taskHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  taskId: { color: C.orange, fontSize: 12, fontWeight: '600', fontFamily: 'monospace' },
+  taskId: { color: COLORS.orange, fontSize: 12, fontWeight: '600', fontFamily: 'monospace' },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
   statusText: { color: '#fff', fontSize: 10, fontWeight: '600' },
-  taskAddress: { color: C.text, fontSize: 15, fontWeight: '600' },
-  taskDesc: { color: C.sub, fontSize: 13, marginTop: 4 },
-  equip: { color: C.sub, fontSize: 12, marginTop: 2, fontFamily: 'monospace' },
-  empty: { color: C.sub, textAlign: 'center', marginTop: 60, fontSize: 16 },
+  taskAddress: { color: COLORS.text, fontSize: 15, fontWeight: '600' },
+  taskDesc: { color: COLORS.sub, fontSize: 13, marginTop: 4 },
+  equip: { color: COLORS.sub, fontSize: 12, marginTop: 2, fontFamily: 'monospace' },
+  empty: { color: COLORS.sub, textAlign: 'center', marginTop: 60, fontSize: 16 },
 });
