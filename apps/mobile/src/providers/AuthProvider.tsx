@@ -1,71 +1,28 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { authApi, usersApi, supabase } from '@/src/lib/supabase';
 
-<<<<<<< HEAD
-// 5 ролей как в веб-приложении
-=======
-// Роли приложения (как в веб-версии)
->>>>>>> dd3744c539c31c2d34149066cd6bfad4332e3c60
-export type UserRole = 'worker' | 'engineer' | 'manager' | 'deputy_head' | 'admin';
-
-export const ROLES = {
-  WORKER: 'worker',
-  ENGINEER: 'engineer',
-  MANAGER: 'manager',
-  DEPUTY_HEAD: 'deputy_head',
-  ADMIN: 'admin',
-} as const;
-
-<<<<<<< HEAD
 type User = {
-=======
-export type User = {
->>>>>>> dd3744c539c31c2d34149066cd6bfad4332e3c60
   id: string;
   email: string;
   name: string;
-  role: UserRole;
+  role: 'manager' | 'worker';
   is_online?: boolean;
-  fcm_token?: string;
 };
 
 type AuthContextValue = {
   user: User | null;
   loading: boolean;
   session: any;
-  signIn: (email: string, password: string) => Promise<void>;
-  signOut: () => Promise<void>;
-  login: (email: string, password: string) => Promise<any>;
-  register: (email: string, password: string, name: string, role: string) => Promise<any>;
-  logout: () => Promise<void>;
-<<<<<<< HEAD
-  // Роли и права как в веб-приложении
-  isWorker: boolean;
-  isEngineer: boolean;
-  isManagerOrHigher: boolean; // manager, deputy_head, admin
-  canCreateTasks: boolean;
-  canDeleteTasks: boolean;
-  canApproveRequests: boolean;
-  canManageUsers: boolean;
-  hasRole: (roles: UserRole[]) => boolean;
-=======
-  // Проверки ролей (как в веб-приложении)
-  isWorker: boolean;
-  isEngineer: boolean;
+  signIn: (email: string, password: string) => Promise;
+  signOut: () => Promise;
+  login: (email: string, password: string) => Promise;
+  register: (email: string, password: string, name: string, role: string) => Promise;
+  logout: () => Promise;
   isManager: boolean;
-  isDeputyHead: boolean;
-  isAdmin: boolean;
-  isManagerOrHigher: boolean; // manager, deputy_head, admin
-  // Проверки прав
-  canCreateTasks: boolean;    // engineer, manager, deputy_head, admin
-  canDeleteTasks: boolean;    // manager, deputy_head, admin
-  canManageUsers: boolean;    // manager, deputy_head, admin
-  canApproveRequests: boolean; // manager, deputy_head, admin
-  hasRole: (roles: UserRole | UserRole[]) => boolean;
->>>>>>> dd3744c539c31c2d34149066cd6bfad4332e3c60
+  isWorker: boolean;
 };
 
-const AuthContext = createContext<AuthContextValue | null>(null);
+const AuthContext = createContext(null);
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -73,15 +30,9 @@ export const useAuth = () => {
   return context;
 };
 
-// Проверка роли как в веб-приложении
-const checkRole = (userRole: UserRole | undefined, requiredRoles: UserRole[]): boolean => {
-  if (!userRole) return false;
-  return requiredRoles.includes(userRole);
-};
-
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<any>(null);
+  const [user, setUser] = useState(null);
+  const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -89,54 +40,33 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const init = async () => {
       const { data: { session: s } } = await supabase.auth.getSession();
       setSession(s);
-
       if (s?.access_token) {
         try {
           const data = await authApi.getMe();
           setUser(data.user);
-          // Heartbeat для online статуса
-          usersApi.heartbeat();
         } catch { setUser(null); }
       }
       if (mounted) setLoading(false);
     };
     init();
-
-    // Подписка на изменения аутентификации
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, s) => {
       setSession(s);
       if (!s?.access_token) { setUser(null); return; }
       try {
         const data = await authApi.getMe();
         setUser(data.user);
-        usersApi.heartbeat();
       } catch { setUser(null); }
     });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-      // Помечаем offline при выходе
-      usersApi.markOffline();
-    };
+    return () => { mounted = false; subscription.unsubscribe(); };
   }, []);
 
   const login = async (email: string, password: string) => {
     const data = await authApi.login(email, password);
     setUser(data.user);
-    usersApi.heartbeat();
     return data;
   };
 
   const register = async (email: string, password: string, name: string, role: string) => {
-<<<<<<< HEAD
-    // Только worker и engineer доступны для регистрации как в веб-приложении
-=======
-    // Проверка на запрещённые роли (как в веб-приложении)
->>>>>>> dd3744c539c31c2d34149066cd6bfad4332e3c60
-    if (['manager', 'deputy_head', 'admin'].includes(role)) {
-      throw new Error('Регистрация на эту роль невозможна');
-    }
     const data = await authApi.register(email, password, name, role);
     setUser(data.user);
     return data;
@@ -149,64 +79,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setSession(null);
   };
 
-<<<<<<< HEAD
-  // Права как в веб-приложении js/auth.js
-  const hasRole = (roles: UserRole[]) => checkRole(user?.role as UserRole, roles);
-
-  const isWorker = user?.role === ROLES.WORKER;
-  const isEngineer = user?.role === ROLES.ENGINEER;
-  const isManagerOrHigher = hasRole([ROLES.MANAGER, ROLES.DEPUTY_HEAD, ROLES.ADMIN]);
-
-  // Права из веб-приложения
-  const canCreateTasks = hasRole([ROLES.ENGINEER, ROLES.MANAGER, ROLES.DEPUTY_HEAD, ROLES.ADMIN]);
-  const canDeleteTasks = hasRole([ROLES.MANAGER, ROLES.DEPUTY_HEAD, ROLES.ADMIN]);
-  const canApproveRequests = hasRole([ROLES.MANAGER, ROLES.DEPUTY_HEAD, ROLES.ADMIN]);
-  const canManageUsers = hasRole([ROLES.MANAGER, ROLES.DEPUTY_HEAD, ROLES.ADMIN]);
-=======
-  // Проверка роли
-  const hasRole = (roles: UserRole | UserRole[]): boolean => {
-    if (!user) return false;
-    if (Array.isArray(roles)) {
-      return roles.includes(user.role as UserRole);
-    }
-    return user.role === roles;
-  };
-
-  // Права пользователя
-  const isManagerOrHigher = hasRole([ROLES.MANAGER, ROLES.DEPUTY_HEAD, ROLES.ADMIN]);
-  const canCreateTasks = hasRole([ROLES.ENGINEER, ROLES.MANAGER, ROLES.DEPUTY_HEAD, ROLES.ADMIN]);
-  const canDeleteTasks = hasRole([ROLES.MANAGER, ROLES.DEPUTY_HEAD, ROLES.ADMIN]);
-  const canManageUsers = hasRole([ROLES.MANAGER, ROLES.DEPUTY_HEAD, ROLES.ADMIN]);
-  const canApproveRequests = hasRole([ROLES.MANAGER, ROLES.DEPUTY_HEAD, ROLES.ADMIN]);
->>>>>>> dd3744c539c31c2d34149066cd6bfad4332e3c60
-
   return (
     <AuthContext.Provider value={{
       user, loading, session,
-      signIn: async (email, password) => { await login(email, password); },
+      signIn: async (email: string, password: string) => { await login(email, password); },
       signOut: logout,
       login, register, logout,
-<<<<<<< HEAD
-      isWorker,
-      isEngineer,
-      isManagerOrHigher,
-      canCreateTasks,
-      canDeleteTasks,
-      canApproveRequests,
-      canManageUsers,
-=======
-      isWorker: hasRole(ROLES.WORKER),
-      isEngineer: hasRole(ROLES.ENGINEER),
-      isManager: hasRole(ROLES.MANAGER),
-      isDeputyHead: hasRole(ROLES.DEPUTY_HEAD),
-      isAdmin: hasRole(ROLES.ADMIN),
-      isManagerOrHigher,
-      canCreateTasks,
-      canDeleteTasks,
-      canManageUsers,
-      canApproveRequests,
->>>>>>> dd3744c539c31c2d34149066cd6bfad4332e3c60
-      hasRole,
+      isManager: user?.role === 'manager',
+      isWorker: user?.role === 'worker',
     }}>
       {children}
     </AuthContext.Provider>
