@@ -14,6 +14,9 @@ permissions:
 env:
   EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
   EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+  EXPO_PUBLIC_REVENUECAT_IOS_API_KEY: ${{ secrets.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY }}
+  EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY: ${{ secrets.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY }}
+  EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID: ${{ secrets.EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID }}
 
 jobs:
   build-android:
@@ -40,13 +43,18 @@ jobs:
         working-directory: apps/mobile
         run: npm install
 
+      - name: Typecheck mobile app
+        working-directory: apps/mobile
+        run: npm run typecheck
+
       - name: Create .env file
         working-directory: apps/mobile
         run: |
           echo "EXPO_PUBLIC_SUPABASE_URL=${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}" > .env
           echo "EXPO_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}" >> .env
-          echo ".env file contents:"
-          cat .env
+          echo "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY=${{ secrets.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY }}" >> .env
+          echo "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY=${{ secrets.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY }}" >> .env
+          echo "EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID=${{ secrets.EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID }}" >> .env
 
       - name: Expo Prebuild (generate android/)
         working-directory: apps/mobile

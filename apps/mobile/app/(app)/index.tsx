@@ -1,85 +1,100 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
+import {
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAuth, ROLES } from '@/src/providers/AuthProvider';
-import { projectsApi, tasksApi, installationsApi, purchaseRequestsApi } from '@/src/lib/supabase';
+import { useAuth } from '@/src/providers/AuthProvider';
+import { installationsApi, projectsApi, purchaseRequestsApi, tasksApi } from '@/src/lib/supabase';
 
-// Cyberpunk тема - как в веб-приложении (cyan)
-const COLORS = {
+const C = {
   bg: '#0A0A0F',
   card: '#1A1A2E',
   accent: '#00D9FF',
-  accent2: '#00FF88',
   text: '#E0E0E0',
   sub: '#8892a0',
   border: 'rgba(0, 217, 255, 0.15)',
-  danger: '#FF3366',
   success: '#00FF88',
-  warning: '#FF6B00',
-  purple: '#8B5CF6',
+  warning: '#F59E0B',
 };
 
-const ROLE_LABELS: Record<string, string> = {
-  worker: 'Руководитель группы',  engineer: 'РИнженер',
-  manager: 'Руководитель',
-  deputy_head: 'ЗАМ.РУКОВОДИТЕЛЯ ОТДЕЛА',
-  admin: 'АДМИН',
+const statusLabels: Record<string, string> = {
+  new: 'Новая',
+  planned: 'Запланирована',
+  in_progress: 'В работе',
+  waiting_materials: 'Ждет материалы',
+  done: 'Выполнена',
+  postponed: 'Отложена',
 };
 
-const StatCard = ({ label, value, color, onPress }: { label: string; value: number; color: string; onPress?: () => void }) => (
-  <TouchableOpacity style={[styles.statCard, { borderLeftColor: color }]} onPress={onPress} disabled={!onPress}>
-    <Text style={[styles.statValue, { color }]}>{value}</Text>
-    <Text style={styles.statLabel}>{label}</Text>
+const statusColors: Record<string, string> = {
+  new: '#3399ff',
+  planned: '#00D9FF',
+  in_progress: '#F59E0B',
+  waiting_materials: '#FF6B00',
+  done: '#00FF88',
+  postponed: '#8892a0',
+};
+
+const StatCard = ({
+  label,
+  value,
+  color,
+  onPress,
+}: {
+  label: string;
+  value: number;
+  color: string;
+  onPress: () => void;
+}) => (
+  <TouchableOpacity style={[s.statCard, { borderLeftColor: color }]} onPress={onPress}>
+    <Text style={[s.statValue, { color }]}>{value}</Text>
+    <Text style={s.statLabel}>{label}</Text>
   </TouchableOpacity>
 );
-
-const QuickNavCard = ({ icon, label, onPress, color = COLORS.accent }: { icon: string; label: string; onPress: () => void; color?: string }) => (
-  <TouchableOpacity style={styles.navCard} onPress={onPress}>
-    <Text style={[styles.navIcon, { color }]}>{icon}</Text>
-    <Text style={[styles.navLabel, { color }]}>{label}</Text>
-  </TouchableOpacity>
-);
-
-// Функция для получения иконки и названия роли
-const getRoleDisplay = (role: string | undefined) => {
-  switch (role) {
-    case ROLES.MANAGER: return { icon: '👔', name: 'Руководитель' };
-    case ROLES.DEPUTY_HEAD: return { icon: '👨‍💼', name: 'ЗАМ.РУКОВОДИТЕЛЯ ОТДЕЛА' };
-    case ROLES.ADMIN: return { icon: '🔐', name: 'Администратор' };
-    case ROLES.ENGINEER: return { icon: '📐', name: 'Руководитель группы' };
-    case ROLES.WORKER: return { icon: '🔧', name: 'Инженер' };
-    default: return { icon: '👤', name: 'Пользователь' };
-  }
-};
 
 export default function DashboardScreen() {
-  const { user, isWorker, isEngineer, isManagerOrHigher, canCreateTasks, canApproveRequests, logout } = useAuth();
+  const { user, isManager, logout } = useAuth();
   const router = useRouter();
-
-  const [stats, setStats] = useState({ projects: 0, tasks: 0, installations: 0, purchaseRequests: 0 });
-  const [recentTasks, setRecentTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    projects: 0,
+    tasks: 0,
+    installations: 0,
+    pendingRequests: 0,
+  });
+  const [recentTasks, setRecentTasks] = useState<any[]>([]);
+  const [recentInstallations, setRecentInstallations] = useState<any[]>([]);
 
   const load = async () => {
     try {
-      const filters = canCreateTasks ? {} : { assignee_id: user?.id };
-      const [projects, tasks, installations] = await Promise.all([
+      const [projects, tasks, installations, requests] = await Promise.all([
         projectsApi.getAll().catch(() => []),
-        tasksApi.getAll(filters).catch(() => []),
-        installationsApi.getAll(filters).catch(() => []),
+        tasksApi.getAll().catch(() => []),
+        installationsApi.getAll().catch(() => []),
+        purchaseRequestsApi.getAll().catch(() => []),
       ]);
-      const pendingPRs = canApproveRequests ? await purchaseRequestsApi.getAll({ status: 'pending' }).catch(() => []) : [];
+
+      const normalizedTasks = Array.isArray(tasks) ? tasks : [];
+      const normalizedInstallations = Array.isArray(installations) ? installations : [];
+      const normalizedRequests = Array.isArray(requests) ? requests : [];
 
       setStats({
         projects: Array.isArray(projects) ? projects.length : 0,
-        tasks: Array.isArray(tasks) ? tasks.length : 0,
-        installations: Array.isArray(installations) ? installations.length : 0,
-        purchaseRequests: Array.isArray(pendingPRs) ? pendingPRs.length : 0
+        tasks: normalizedTasks.length,
+        installations: normalizedInstallations.length,
+        pendingRequests: normalizedRequests.filter((item) => item.status === 'pending').length,
       });
-      setRecentTasks(Array.isArray(tasks) ? tasks.slice(0, 5) : []);
-    } catch (e) {
-      console.error(e);
+      setRecentTasks(normalizedTasks.slice(0, 4));
+      setRecentInstallations(normalizedInstallations.slice(0, 4));
+    } catch (error) {
+      console.error('Failed to load dashboard data:', error);
     }
   };
 
@@ -93,147 +108,197 @@ export default function DashboardScreen() {
     setRefreshing(false);
   };
 
-  const statusColor = (s: string) => ({
-    'active': COLORS.success,
-    'completed': COLORS.accent,
-    'pending': COLORS.warning,
-    'in_progress': COLORS.warning,
-    'new': COLORS.accent,
-  }[s] || COLORS.sub);
-
-  const getRoleBadgeColor = () => {
-    if (user?.role === 'admin') return COLORS.danger;
-    if (user?.role === 'manager' || user?.role === 'deputy_head') return COLORS.accent;
-    if (user?.role === 'engineer') return COLORS.purple;
-    return COLORS.sub;
-  };
-
-  if (loading) return (
-    <View style={styles.center}>
-      <Text style={styles.loadingLogo}>КОРНЕО</Text>
-      <ActivityIndicator color={COLORS.accent} size="large" style={{ marginTop: 20 }} />
-    </View>
-  );
+  if (loading) {
+    return (
+      <View style={s.center}>
+        <Text style={s.loadingLogo}>KORNEO</Text>
+        <ActivityIndicator color={C.accent} size="large" style={{ marginTop: 20 }} />
+      </View>
+    );
+  }
 
   return (
-    <ScrollView 
-      style={styles.container} 
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.accent} />}
+    <ScrollView
+      style={s.container}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.accent} />}
     >
-      {/* Header */}
-      <View style={styles.header}>
+      <View style={s.header}>
         <View>
-          <Text style={styles.greeting}>Добрый день,</Text>
-          <Text style={styles.name}>{user?.name || user?.email?.split('@')[0] || 'Пользователь'}</Text>
-          <View style={[styles.roleBadge, { backgroundColor: `${getRoleBadgeColor()}20`, borderColor: getRoleBadgeColor(), borderWidth: 1 }]}>
-            <Text style={[styles.roleText, { color: getRoleBadgeColor() }]}>{ROLE_LABELS[user?.role || 'worker']}</Text>
-          </View>
+          <Text style={s.greeting}>Добро пожаловать,</Text>
+          <Text style={s.name}>{user?.name || user?.email?.split('@')[0] || 'Пользователь'}</Text>
+          <Text style={s.role}>{isManager ? 'Руководитель' : 'Исполнитель'}</Text>
         </View>
-        <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
-          <Text style={styles.logoutText}>ВЫХОД</Text>
+        <TouchableOpacity style={s.logoutBtn} onPress={logout}>
+          <Text style={s.logoutText}>Выйти</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Statistics */}
-      <Text style={styles.sectionTitle}>СТАТИСТИКА</Text>
-      <View style={styles.statsGrid}>
-        <StatCard label="Проекты" value={stats.projects} color={COLORS.accent} onPress={() => router.push('/(app)/projects')} />
-        <StatCard label="Задачи" value={stats.tasks} color={COLORS.success} onPress={() => router.push('/(app)/tasks')} />
-        <StatCard label="Монтажи" value={stats.installations} color={COLORS.warning} onPress={() => router.push('/(app)/installations')} />
-        {canCreateTasks && <StatCard label="АВР" value={0} color={COLORS.danger} onPress={() => router.push('/(app)/avr')} />}
-        {canApproveRequests && stats.purchaseRequests > 0 && (
-          <StatCard label="Заявки" value={stats.purchaseRequests} color={COLORS.purple} onPress={() => router.push('/(app)/purchase-requests')} />
-        )}
+      <View style={s.statsGrid}>
+        <StatCard label="Проекты" value={stats.projects} color={C.accent} onPress={() => router.push('/(app)/projects')} />
+        <StatCard label="Задачи" value={stats.tasks} color={C.success} onPress={() => router.push('/(app)/tasks')} />
+        <StatCard
+          label="Монтажи"
+          value={stats.installations}
+          color={C.warning}
+          onPress={() => router.push('/(app)/installations')}
+        />
+        <StatCard
+          label="Заявки"
+          value={stats.pendingRequests}
+          color={C.accent}
+          onPress={() => router.push('/(app)/purchase-requests')}
+        />
       </View>
 
-      {/* Quick Navigation */}
-      <Text style={styles.sectionTitle}>НАВИГАЦИЯ</Text>
-      <View style={styles.navGrid}>
-        <QuickNavCard icon="📋" label="Проекты" onPress={() => router.push('/(app)/projects')} />
-        <QuickNavCard icon="✅" label="Задачи" onPress={() => router.push('/(app)/tasks')} />
-        <QuickNavCard icon="🔧" label="Монтажи" onPress={() => router.push('/(app)/installations')} />
-        <QuickNavCard icon="💬" label="Чат" onPress={() => router.push('/(app)/chat')} />
-        <QuickNavCard icon="🗺️" label="Площадки" onPress={() => router.push('/(app)/sites')} />
-        <QuickNavCard icon="👥" label="Сотрудники" onPress={() => router.push('/(app)/users')} />
-        
-        {/* Manager-only sections */}
-        {isManagerOrHigher && (
-          <>
-            <QuickNavCard icon="📦" label="Склад" onPress={() => router.push('/(app)/warehouse')} color={COLORS.success} />
-            <QuickNavCard icon="🛍️" label="Заявки" onPress={() => router.push('/(app)/purchase-requests')} color={COLORS.warning} />
-          </>
-        )}
-        
-        {/* Engineer+ sections */}
-        {canCreateTasks && (
-          <>
-            <QuickNavCard icon="⚡" label="АВР" onPress={() => router.push('/(app)/avr')} color={COLORS.danger} />
-            <QuickNavCard icon="🗄️" label="Архив" onPress={() => router.push('/(app)/archive')} />
-          </>
-        )}
-      </View>
+      <View style={s.section}>
+        <View style={s.sectionHeader}>
+          <Text style={s.sectionTitle}>Последние задачи</Text>
+          <TouchableOpacity onPress={() => router.push('/(app)/tasks')}>
+            <Text style={s.sectionLink}>Все</Text>
+          </TouchableOpacity>
+        </View>
 
-      {/* Recent Tasks */}
-      {recentTasks.length > 0 && (
-        <>
-          <Text style={styles.sectionTitle}>ПОСЛЕДНИЕ ЗАДАЧИ</Text>
-          {recentTasks.map(task => (
+        {recentTasks.length === 0 ? (
+          <Text style={s.empty}>Задач пока нет</Text>
+        ) : (
+          recentTasks.map((task) => (
             <TouchableOpacity
               key={task.id}
-              style={styles.taskCard}
-              onPress={() => router.push({ pathname: '/(app)/task/[id]', params: { id: task.id } })}
+              style={s.itemCard}
+              onPress={() => router.push({ pathname: '/(app)/task/[id]', params: { id: task.id } } as any)}
             >
-              <View style={styles.taskRow}>
-                <Text style={styles.taskTitle}>{task.title}</Text>
-                <View style={[styles.badge, { backgroundColor: statusColor(task.status) }]}>
-                  <Text style={styles.badgeText}>{task.status}</Text>
+              <View style={s.itemTop}>
+                <Text style={s.itemTitle}>{task.title}</Text>
+                <View style={[s.badge, { backgroundColor: statusColors[task.status] || C.sub }]}>
+                  <Text style={s.badgeText}>{statusLabels[task.status] || task.status}</Text>
                 </View>
               </View>
-              <Text style={styles.taskSub}>{task.project?.name || '—'}</Text>
+              <Text style={s.itemSub}>{task.project?.name || 'Без проекта'}</Text>
             </TouchableOpacity>
-          ))}
-        </>
-      )}
+          ))
+        )}
+      </View>
 
-      {/* Permissions Info (for debugging) */}
-      <View style={styles.debugInfo}>
-        <Text style={styles.debugTitle}>Ваши возможности:</Text>
-        <Text style={styles.debugText}>Создавать задачи: {canCreateTasks ? '✓' : '✗'}</Text>
-        <Text style={styles.debugText}>Удалять задачи: {user?.role === 'manager' || user?.role === 'admin' ? '✓' : '✗'}</Text>
-        <Text style={styles.debugText}>Одобрять заявки: {canApproveRequests ? '✓' : '✗'}</Text>
-        <Text style={styles.debugText}>Управлять пользователями: {user?.role === 'manager' || user?.role === 'admin' ? '✓' : '✗'}</Text>
+      <View style={s.section}>
+        <View style={s.sectionHeader}>
+          <Text style={s.sectionTitle}>Последние монтажи</Text>
+          <TouchableOpacity onPress={() => router.push('/(app)/installations')}>
+            <Text style={s.sectionLink}>Все</Text>
+          </TouchableOpacity>
+        </View>
+
+        {recentInstallations.length === 0 ? (
+          <Text style={s.empty}>Монтажей пока нет</Text>
+        ) : (
+          recentInstallations.map((item) => (
+            <TouchableOpacity
+              key={item.id}
+              style={s.itemCard}
+              onPress={() =>
+                router.push({ pathname: '/(app)/installation/[id]', params: { id: item.id } } as any)
+              }
+            >
+              <View style={s.itemTop}>
+                <Text style={s.itemTitle}>{item.title || item.address || 'Монтаж'}</Text>
+                <View style={[s.badge, { backgroundColor: statusColors[item.status] || C.sub }]}>
+                  <Text style={s.badgeText}>{statusLabels[item.status] || item.status}</Text>
+                </View>
+              </View>
+              <Text style={s.itemSub}>{item.project?.name || item.address || 'Без проекта'}</Text>
+            </TouchableOpacity>
+          ))
+        )}
+      </View>
+
+      <View style={s.section}>
+        <Text style={s.sectionTitle}>Навигация</Text>
+        <View style={s.linksGrid}>
+          <TouchableOpacity style={s.linkCard} onPress={() => router.push('/(app)/projects')}>
+            <Text style={s.linkTitle}>Проекты</Text>
+            <Text style={s.linkSub}>Список и карточки проектов</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.linkCard} onPress={() => router.push('/(app)/tasks')}>
+            <Text style={s.linkTitle}>Задачи</Text>
+            <Text style={s.linkSub}>Текущие работы и статусы</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.linkCard} onPress={() => router.push('/(app)/installations')}>
+            <Text style={s.linkTitle}>Монтажи</Text>
+            <Text style={s.linkSub}>Планирование и выполнение</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.linkCard} onPress={() => router.push('/(app)/purchase-requests')}>
+            <Text style={s.linkTitle}>Заявки</Text>
+            <Text style={s.linkSub}>Закупка материалов</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.linkCard} onPress={() => router.push('/(app)/archive')}>
+            <Text style={s.linkTitle}>Архив</Text>
+            <Text style={s.linkSub}>Завершенные записи</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.bg },
-  loadingLogo: { color: COLORS.accent, fontSize: 32, fontWeight: '800', letterSpacing: 3 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 20, paddingTop: 48 },
-  greeting: { color: COLORS.sub, fontSize: 14 },
-  name: { color: COLORS.text, fontSize: 22, fontWeight: '700', marginTop: 4 },
-  roleBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, marginTop: 6, alignSelf: 'flex-start' },
-  roleText: { fontSize: 11, fontWeight: '700', letterSpacing: 1 },
-  logoutBtn: { backgroundColor: 'rgba(255, 51, 102, 0.15)', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: COLORS.danger },
-  logoutText: { color: COLORS.danger, fontSize: 12, fontWeight: '600', letterSpacing: 1 },
-  sectionTitle: { color: COLORS.accent, fontSize: 13, fontWeight: '700', paddingHorizontal: 20, marginTop: 20, marginBottom: 12, letterSpacing: 1 },
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: C.bg },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.bg },
+  loadingLogo: { color: C.accent, fontSize: 30, fontWeight: '800', letterSpacing: 3 },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    padding: 20,
+    paddingTop: 48,
+  },
+  greeting: { color: C.sub, fontSize: 14 },
+  name: { color: C.text, fontSize: 24, fontWeight: '700', marginTop: 4 },
+  role: { color: C.accent, fontSize: 13, marginTop: 8, fontWeight: '600' },
+  logoutBtn: {
+    backgroundColor: 'rgba(0, 217, 255, 0.12)',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  logoutText: { color: C.accent, fontSize: 13, fontWeight: '600' },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, gap: 8 },
-  statCard: { backgroundColor: COLORS.card, borderRadius: 12, padding: 16, flex: 1, minWidth: '40%', borderLeftWidth: 3 },
-  statValue: { fontSize: 28, fontWeight: '700' },
-  statLabel: { color: COLORS.sub, fontSize: 12, marginTop: 4 },
-  navGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, gap: 8 },
-  navCard: { backgroundColor: COLORS.card, borderRadius: 12, padding: 16, alignItems: 'center', flex: 1, minWidth: '28%', borderWidth: 1, borderColor: COLORS.border },
-  navIcon: { fontSize: 24, marginBottom: 6 },
-  navLabel: { color: COLORS.text, fontSize: 12, fontWeight: '500', textAlign: 'center' },
-  taskCard: { backgroundColor: COLORS.card, marginHorizontal: 16, marginBottom: 8, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: COLORS.border },
-  taskRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  taskTitle: { color: COLORS.text, fontSize: 14, fontWeight: '600', flex: 1, marginRight: 8 },
-  taskSub: { color: COLORS.sub, fontSize: 12, marginTop: 4 },
-  badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  badgeText: { color: '#0A0A0F', fontSize: 10, fontWeight: '600' },
-  debugInfo: { backgroundColor: COLORS.card, margin: 16, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border },
-  debugTitle: { color: COLORS.accent, fontSize: 12, fontWeight: '600', marginBottom: 8 },
-  debugText: { color: COLORS.sub, fontSize: 11, marginBottom: 4 },
+  statCard: {
+    backgroundColor: C.card,
+    borderRadius: 14,
+    padding: 16,
+    flex: 1,
+    minWidth: '42%',
+    borderLeftWidth: 3,
+  },
+  statValue: { fontSize: 30, fontWeight: '800' },
+  statLabel: { color: C.sub, marginTop: 4, fontSize: 12 },
+  section: { marginTop: 22, paddingHorizontal: 16 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  sectionTitle: { color: C.text, fontSize: 18, fontWeight: '700' },
+  sectionLink: { color: C.accent, fontSize: 13, fontWeight: '600' },
+  itemCard: {
+    backgroundColor: C.card,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  itemTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  itemTitle: { color: C.text, fontSize: 14, fontWeight: '600', flex: 1, marginRight: 10 },
+  itemSub: { color: C.sub, marginTop: 6, fontSize: 12 },
+  badge: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 },
+  badgeText: { color: '#081018', fontSize: 10, fontWeight: '700' },
+  empty: { color: C.sub, fontSize: 14, paddingVertical: 12 },
+  linksGrid: { gap: 10, paddingBottom: 28 },
+  linkCard: {
+    backgroundColor: C.card,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  linkTitle: { color: C.accent, fontSize: 15, fontWeight: '700' },
+  linkSub: { color: C.sub, fontSize: 12, marginTop: 4 },
 });

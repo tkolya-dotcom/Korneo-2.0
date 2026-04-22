@@ -10,10 +10,9 @@ const statusColor = (s: string) => ({ active: C.green, pending: C.yellow, comple
 const statusLabel = (s: string) => ({ active: 'Активный', pending: 'Ожидает', completed: 'Завершён', cancelled: 'Отменён' }[s] || s);
 
 export default function ProjectsScreen() {
-  const { isManager } = useAuth();
   const router = useRouter();
-  const [projects, setProjects] = useState([]);
-  const [filtered, setFiltered] = useState([]);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [filtered, setFiltered] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

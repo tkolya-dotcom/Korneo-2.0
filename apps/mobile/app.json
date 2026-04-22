@@ -4,6 +4,10 @@
     "slug": "korneo-mobile",
     "version": "1.0.0",
     "scheme": "korneo",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0f172a"
+    },
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0f172a",
@@ -16,6 +20,9 @@
             "targetSdkVersion": 35,
             "buildToolsVersion": "35.0.0",
             "kotlinVersion": "1.9.25"
+          },
+          "ios": {
+            "useFrameworks": "static"
           }
         }
       ],
@@ -30,10 +37,16 @@
     },
     "ios": {
       "bundleIdentifier": "com.tkolya.korneo",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
+      }
     },
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {}
   }
 }
