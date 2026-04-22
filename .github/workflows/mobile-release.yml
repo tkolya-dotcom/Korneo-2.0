@@ -119,7 +119,7 @@ jobs:
 
       - name: Collect release APK
         run: |
-          APK_PATH=$(find apps/mobile/android/app/build/outputs/apk/release -name "*.apk" | head -1)
+          APK_PATH=$(find apps/mobile/android/app/build/outputs/apk/release -name "*.apk" -print -quit)
           if [ -z "$APK_PATH" ]; then
             echo "ERROR: No release APK found"
             find apps/mobile/android/app/build/outputs -maxdepth 4 -type f | sort
