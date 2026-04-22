@@ -24,10 +24,22 @@ export const authApi = {
   login: async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
-    const { data: user, error: userError } = await supabase.from('users').select('*').eq('id', data.user.id).single();
-    if (userError) throw userError;
+    
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', data.user.id)
+      .single();
+    
+    if (userError) {
+      if (userError.code === 'PGRST116') {
+        return { token: data.session?.access_token || null, user: { id: data.user.id, email: data.user.email, role: 'worker' } };
+      }
+      throw userError;
+    }
     return { token: data.session?.access_token || null, user };
   },
+  
   register: async (email: string, password: string, name: string, role: string) => {
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) throw error;
@@ -35,13 +47,26 @@ export const authApi = {
     if (userError) throw userError;
     return { token: data.session?.access_token || null, user };
   },
+  
   getMe: async () => {
     const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
     if (authError || !authUser) throw new Error('Not authenticated');
-    const { data: user, error: userError } = await supabase.from('users').select('*').eq('id', authUser.id).single();
-    if (userError) throw userError;
+    
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', authUser.id)
+      .single();
+    
+    if (userError) {
+      if (userError.code === 'PGRST116') {
+        return { user: { id: authUser.id, email: authUser.email, role: 'worker', name: authUser.email?.split('@')[0] } };
+      }
+      throw userError;
+    }
     return { user };
   },
+  
   getUsers: async (role?: string) => {
     let query = supabase.from('users').select('*');
     if (role) query = query.eq('role', role);
@@ -163,7 +188,7 @@ export const purchaseRequestsApi = {
   },
   create: async (request: any) => {
     const { items, ...reqData } = request;
-    const { data: pr, error: prError } = await supabase.from('purchase_requests').insert([reqData]).select().single();
+    const { data: pr, error: prError} = await supabase.from('purchase_requests').insert([reqData]).select().single();
     if (prError) throw prError;
     if (items && items.length > 0) {
       const itemsToInsert = items.map((item: any) => ({ ...item, purchase_request_id: pr.id }));
@@ -188,6 +213,22 @@ export const materialsApi = {
   },
   search: async (searchTerm: string) => {
     const { data, error } = await supabase.from('materials').select('*').ilike('name', `%${searchTerm}%`);
+    return handle(data, error);
+  },
+};
+
+// Comments API
+export const commentsApi = {
+  getByTask: async (taskId: string, taskType: 'task' | 'installation' = 'task') => {
+    const table = taskType === 'task' ? 'task_comments' : 'installation_comments';
+    const { data, error } = await supabase.from(table).select('*, author:author_id(*)').eq('task_id', taskId).order('created_at', { ascending: true });
+    return handle(data, error);
+  },
+  create: async (taskId: string, content: string, taskType: 'task' | 'installation' = 'task') => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+    const table = taskType === 'task' ? 'task_comments' : 'installation_comments';
+    const { data, error } = await supabase.from(table).insert([{ task_id: taskId, author_id: user.id, content }]).select().single();
     return handle(data, error);
   },
 };

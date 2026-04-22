@@ -4,15 +4,16 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { tasksApi } from '@/src/lib/supabase';
 
-const C = { bg: '#0f172a', card: '#1e293b', accent: '#6366f1', text: '#f1f5f9', sub: '#94a3b8', border: '#334155', green: '#22c55e', yellow: '#f59e0b', orange: '#f97316' };
+const C = { bg: '#0f172a', card: '#1e293b', accent: '#02d7ff', text: '#e8f1ff', sub: '#9ab0c5', border: '#1e2a35', green: '#22c55e', yellow: '#f59e0b', orange: '#f97316' };
+
 const statusColor = (s: string) => ({ active: C.green, pending: C.yellow, in_progress: C.orange, completed: C.accent, cancelled: C.sub }[s] || C.sub);
 const statusLabel = (s: string) => ({ active: 'Активна', pending: 'Ожидает', in_progress: 'В работе', completed: 'Готова', cancelled: 'Отменена' }[s] || s);
 
 export default function TasksScreen() {
   const { user, isManager } = useAuth();
   const router = useRouter();
-  const [tasks, setTasks] = useState<any[]>([]);
-  const [filtered, setFiltered] = useState<any[]>([]);
+  const [tasks, setTasks] = useState([]);
+  const [filtered, setFiltered] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -26,6 +27,7 @@ export default function TasksScreen() {
   };
 
   useEffect(() => { load().finally(() => setLoading(false)); }, []);
+
   useEffect(() => {
     const q = search.toLowerCase();
     setFiltered(tasks.filter(t => t.title?.toLowerCase().includes(q) || t.project?.name?.toLowerCase().includes(q)));
@@ -41,7 +43,9 @@ export default function TasksScreen() {
         <Text style={s.title}>Задачи</Text>
         <Text style={s.count}>{filtered.length}</Text>
       </View>
+
       <TextInput style={s.search} placeholder="Поиск..." placeholderTextColor={C.sub} value={search} onChangeText={setSearch} />
+
       <FlatList
         data={filtered}
         keyExtractor={item => item.id}

@@ -13,16 +13,16 @@ type AuthContextValue = {
   user: User | null;
   loading: boolean;
   session: any;
-  signIn: (email: string, password: string) => Promise<void>;
-  signOut: () => Promise<void>;
-  login: (email: string, password: string) => Promise<any>;
-  register: (email: string, password: string, name: string, role: string) => Promise<any>;
-  logout: () => Promise<void>;
+  signIn: (email: string, password: string) => Promise;
+  signOut: () => Promise;
+  login: (email: string, password: string) => Promise;
+  register: (email: string, password: string, name: string, role: string) => Promise;
+  logout: () => Promise;
   isManager: boolean;
   isWorker: boolean;
 };
 
-const AuthContext = createContext<AuthContextValue | null>(null);
+const AuthContext = createContext(null);
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -31,8 +31,8 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<any>(null);
+  const [user, setUser] = useState(null);
+  const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -82,7 +82,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   return (
     <AuthContext.Provider value={{
       user, loading, session,
-      signIn: async (email, password) => { await login(email, password); },
+      signIn: async (email: string, password: string) => { await login(email, password); },
       signOut: logout,
       login, register, logout,
       isManager: user?.role === 'manager',

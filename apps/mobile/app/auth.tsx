@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { useAuth } from '@/src/providers/AuthProvider';
+import { COLORS as THEME_COLORS } from '@/src/theme/colors';
 
-const COLORS = { bg: '#0f172a', card: '#1e293b', accent: '#6366f1', text: '#f1f5f9', sub: '#94a3b8', border: '#334155', red: '#ef4444' };
+const COLORS = { bg: '#0f172a', card: '#1e293b', accent: '#02d7ff', text: '#e8f1ff', sub: '#9ab0c5', border: '#1e2a35', red: '#ef4444' };
 
 export default function AuthScreen() {
   const { signIn, register } = useAuth();
@@ -10,7 +11,7 @@ export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [role, setRole] = useState<'manager' | 'worker'>('worker');
+  const [role, setRole] = useState<'manager' | 'worker' | 'engineer'>('worker');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
@@ -35,7 +36,7 @@ export default function AuthScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.logoBox}>
           <Text style={styles.logo}>Корнео</Text>
           <Text style={styles.tagline}>Система управления стройкой</Text>
@@ -43,75 +44,38 @@ export default function AuthScreen() {
 
         <View style={styles.card}>
           <View style={styles.tabs}>
-            <TouchableOpacity
-              style={[styles.tab, mode === 'login' && styles.activeTab]}
-              onPress={() => setMode('login')}
-            >
+            <TouchableOpacity style={[styles.tab, mode === 'login' && styles.activeTab]} onPress={() => setMode('login')}>
               <Text style={[styles.tabText, mode === 'login' && styles.activeTabText]}>Вход</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.tab, mode === 'register' && styles.activeTab]}
-              onPress={() => setMode('register')}
-            >
+            <TouchableOpacity style={[styles.tab, mode === 'register' && styles.activeTab]} onPress={() => setMode('register')}>
               <Text style={[styles.tabText, mode === 'register' && styles.activeTabText]}>Регистрация</Text>
             </TouchableOpacity>
           </View>
 
+          <TextInput style={styles.input} placeholder="Email" placeholderTextColor={COLORS.sub} value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
+          <TextInput style={styles.input} placeholder="Пароль" placeholderTextColor={COLORS.sub} value={password} onChangeText={setPassword} secureTextEntry />
+
           {mode === 'register' && (
-            <TextInput
-              style={styles.input}
-              placeholder="Имя"
-              placeholderTextColor={COLORS.sub}
-              value={name}
-              onChangeText={setName}
-            />
+            <TextInput style={styles.input} placeholder="Имя" placeholderTextColor={COLORS.sub} value={name} onChangeText={setName} />
           )}
-
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            placeholderTextColor={COLORS.sub}
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-          />
-
-          <TextInput
-            style={styles.input}
-            placeholder="Пароль"
-            placeholderTextColor={COLORS.sub}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
 
           {mode === 'register' && (
             <View style={styles.roleRow}>
               <Text style={styles.roleLabel}>Роль:</Text>
-              <TouchableOpacity
-                style={[styles.roleBtn, role === 'worker' && styles.activeRole]}
-                onPress={() => setRole('worker')}
-              >
+              <TouchableOpacity style={[styles.roleBtn, role === 'worker' && styles.activeRole]} onPress={() => setRole('worker')}>
                 <Text style={[styles.roleBtnText, role === 'worker' && styles.activeRoleTxt]}>Монтажник</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.roleBtn, role === 'manager' && styles.activeRole]}
-                onPress={() => setRole('manager')}
-              >
+              <TouchableOpacity style={[styles.roleBtn, role === 'engineer' && styles.activeRole]} onPress={() => setRole('engineer')}>
+                <Text style={[styles.roleBtnText, role === 'engineer' && styles.activeRoleTxt]}>Инженер</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.roleBtn, role === 'manager' && styles.activeRole]} onPress={() => setRole('manager')}>
                 <Text style={[styles.roleBtnText, role === 'manager' && styles.activeRoleTxt]}>Менеджер</Text>
               </TouchableOpacity>
             </View>
           )}
 
-          <TouchableOpacity
-            style={[styles.btn, loading && styles.btnDisabled]}
-            onPress={handleSubmit}
-            disabled={loading}
-          >
-            <Text style={styles.btnText}>
-              {loading ? 'Загрузка...' : mode === 'login' ? 'Войти' : 'Зарегистрироваться'}
-            </Text>
+          <TouchableOpacity style={[styles.btn, loading && styles.btnDisabled]} onPress={handleSubmit} disabled={loading}>
+            <Text style={styles.btnText}>{loading ? 'Загрузка...' : mode === 'login' ? 'Войти' : 'Зарегистрироваться'}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

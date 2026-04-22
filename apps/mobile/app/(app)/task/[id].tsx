@@ -4,7 +4,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { tasksApi } from '@/src/lib/supabase';
 
-const C = { bg: '#0f172a', card: '#1e293b', accent: '#6366f1', text: '#f1f5f9', sub: '#94a3b8', border: '#334155', green: '#22c55e', yellow: '#f59e0b', orange: '#f97316', red: '#ef4444' };
+const C = { bg: '#0f172a', card: '#1e293b', accent: '#02d7ff', text: '#e8f1ff', sub: '#9ab0c5', border: '#1e2a35', green: '#22c55e', yellow: '#f59e0b', orange: '#f97316', red: '#ef4444' };
+
 const STATUS_OPTIONS = ['pending', 'in_progress', 'completed', 'cancelled'];
 const statusLabel = (s: string) => ({ pending: 'Ожидает', in_progress: 'В работе', completed: 'Готова', cancelled: 'Отменена', active: 'Активна' }[s] || s);
 const statusColor = (s: string) => ({ pending: C.yellow, in_progress: C.orange, completed: C.green, cancelled: C.sub, active: C.green }[s] || C.sub);
@@ -13,7 +14,7 @@ export default function TaskDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { isManager } = useAuth();
-  const [task, setTask] = useState<any>(null);
+  const [task, setTask] = useState(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
 
@@ -39,6 +40,7 @@ export default function TaskDetailScreen() {
       <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
         <Text style={s.backText}>← Назад</Text>
       </TouchableOpacity>
+
       <View style={s.card}>
         <View style={[s.badge, { backgroundColor: statusColor(task.status), alignSelf: 'flex-start', marginBottom: 12 }]}>
           <Text style={s.badgeText}>{statusLabel(task.status)}</Text>
@@ -49,26 +51,23 @@ export default function TaskDetailScreen() {
 
       <View style={s.card}>
         <Text style={s.sectionTitle}>Информация</Text>
-        {task.project?.name && <View style={s.row}><Text style={s.label}>Проект</Text><Text style={s.value}>{task.project.name}</Text></View>}
-        {task.assignee?.name && <View style={s.row}><Text style={s.label}>Исполнитель</Text><Text style={s.value}>{task.assignee.name}</Text></View>}
+        <View style={s.row}><Text style={s.label}>Проект</Text><Text style={s.value}>{task.project?.name || '-'}</Text></View>
+        <View style={s.row}><Text style={s.label}>Исполнитель</Text><Text style={s.value}>{task.assignee?.name || '-'}</Text></View>
         {task.deadline && <View style={s.row}><Text style={s.label}>Дедлайн</Text><Text style={s.value}>{new Date(task.deadline).toLocaleDateString('ru')}</Text></View>}
       </View>
 
-      <View style={s.card}>
-        <Text style={s.sectionTitle}>Сменить статус</Text>
-        <View style={s.statusGrid}>
-          {STATUS_OPTIONS.map(st => (
-            <TouchableOpacity
-              key={st}
-              style={[s.statusBtn, task.status === st && { backgroundColor: statusColor(st) }]}
-              onPress={() => changeStatus(st)}
-              disabled={updating}
-            >
-              <Text style={[s.statusBtnText, task.status === st && { color: '#fff' }]}>{statusLabel(st)}</Text>
-            </TouchableOpacity>
-          ))}
+      {isManager && (
+        <View style={s.card}>
+          <Text style={s.sectionTitle}>Сменить статус</Text>
+          <View style={s.statusGrid}>
+            {STATUS_OPTIONS.map(st => (
+              <TouchableOpacity key={st} style={s.statusBtn} onPress={() => changeStatus(st)} disabled={updating}>
+                <Text style={s.statusBtnText}>{statusLabel(st)}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
-      </View>
+      )}
     </ScrollView>
   );
 }

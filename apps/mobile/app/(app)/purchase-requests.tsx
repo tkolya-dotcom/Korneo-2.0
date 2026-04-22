@@ -4,14 +4,15 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { purchaseRequestsApi } from '@/src/lib/supabase';
 
-const C = { bg: '#0f172a', card: '#1e293b', accent: '#6366f1', text: '#f1f5f9', sub: '#94a3b8', border: '#334155', green: '#22c55e', yellow: '#f59e0b', orange: '#f97316', red: '#ef4444' };
+const C = { bg: '#0f172a', card: '#1e293b', accent: '#02d7ff', text: '#e8f1ff', sub: '#9ab0c5', border: '#1e2a35', green: '#22c55e', yellow: '#f59e0b', orange: '#f97316', red: '#ef4444' };
+
 const statusColor = (s: string) => ({ pending: C.yellow, approved: C.green, rejected: C.red, completed: C.accent, cancelled: C.sub }[s] || C.sub);
 const statusLabel = (s: string) => ({ pending: 'Ожидает', approved: 'Одобрена', rejected: 'Отклонена', completed: 'Готова', cancelled: 'Отменена' }[s] || s);
 
 export default function PurchaseRequestsScreen() {
   const { user, isManager } = useAuth();
   const router = useRouter();
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -23,6 +24,7 @@ export default function PurchaseRequestsScreen() {
   };
 
   useEffect(() => { load().finally(() => setLoading(false)); }, []);
+
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
   const approve = async (id: string) => {
@@ -47,6 +49,7 @@ export default function PurchaseRequestsScreen() {
         <Text style={s.title}>Заявки</Text>
         <Text style={s.count}>{items.length}</Text>
       </View>
+
       <FlatList
         data={items}
         keyExtractor={item => item.id}
@@ -65,11 +68,11 @@ export default function PurchaseRequestsScreen() {
             {item.creator?.name && <Text style={s.sub}>👤 {item.creator.name}</Text>}
             {isManager && item.status === 'pending' && (
               <View style={s.actions}>
-                <TouchableOpacity style={[s.actionBtn, { backgroundColor: C.green + '22' }]} onPress={() => approve(item.id)}>
-                  <Text style={[s.actionBtnText, { color: C.green }]}>Одобрить</Text>
+                <TouchableOpacity style={[s.actionBtn, { backgroundColor: C.green }]} onPress={() => approve(item.id)}>
+                  <Text style={s.actionBtnText}>Одобрить</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[s.actionBtn, { backgroundColor: C.red + '22' }]} onPress={() => reject(item.id)}>
-                  <Text style={[s.actionBtnText, { color: C.red }]}>Отклонить</Text>
+                <TouchableOpacity style={[s.actionBtn, { backgroundColor: C.red }]} onPress={() => reject(item.id)}>
+                  <Text style={s.actionBtnText}>Отклонить</Text>
                 </TouchableOpacity>
               </View>
             )}
