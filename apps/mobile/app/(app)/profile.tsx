@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { colors } from '@/src/theme/colors';
@@ -143,3 +143,4 @@ export default function ProfileScreen() {
     </ScrollView>
   );
 }
+

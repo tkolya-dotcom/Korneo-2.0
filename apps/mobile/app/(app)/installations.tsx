@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -177,3 +177,4 @@ const s = StyleSheet.create({
   badgeText: { color: '#081018', fontSize: 10, fontWeight: '700' },
   empty: { color: C.sub, textAlign: 'center', marginTop: 60, fontSize: 16 },
 });
+

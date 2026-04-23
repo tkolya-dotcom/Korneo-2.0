@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '@/src/providers/AuthProvider';
@@ -193,3 +193,4 @@ const s = StyleSheet.create({
   statusBtnText: { color: C.sub, fontSize: 13, fontWeight: '600' },
   statusBtnTextActive: { color: C.accent },
 });
+

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -233,6 +233,38 @@ export default function DashboardScreen() {
             <Text style={s.linkTitle}>Архив</Text>
             <Text style={s.linkSub}>Завершенные записи</Text>
           </TouchableOpacity>
+          <TouchableOpacity style={s.linkCard} onPress={() => router.push('/(app)/messenger')}>
+            <Text style={s.linkTitle}>Чаты</Text>
+            <Text style={s.linkSub}>Личные и групповые переписки</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.linkCard} onPress={() => router.push('/(app)/warehouse')}>
+            <Text style={s.linkTitle}>Склад</Text>
+            <Text style={s.linkSub}>Остатки и категории материалов</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.linkCard} onPress={() => router.push('/(app)/avr')}>
+            <Text style={s.linkTitle}>АВР / НРД</Text>
+            <Text style={s.linkSub}>Аварийные и технические заявки</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.linkCard} onPress={() => router.push('/(app)/calendar')}>
+            <Text style={s.linkTitle}>Календарь</Text>
+            <Text style={s.linkSub}>План на месяц по задачам и монтажам</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.linkCard} onPress={() => router.push('/(app)/sites')}>
+            <Text style={s.linkTitle}>Площадки</Text>
+            <Text style={s.linkSub}>Объекты и оборудование</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.linkCard} onPress={() => router.push('/(app)/users')}>
+            <Text style={s.linkTitle}>Пользователи</Text>
+            <Text style={s.linkSub}>Зарегистрированные пользователи</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.linkCard} onPress={() => router.push('/(app)/atss')}>
+            <Text style={s.linkTitle}>АТСС</Text>
+            <Text style={s.linkSub}>План-график АТСС из базы</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.linkCard} onPress={() => router.push('/(app)/profile')}>
+            <Text style={s.linkTitle}>Профиль</Text>
+            <Text style={s.linkSub}>Настройки и подписка</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </ScrollView>
@@ -302,3 +334,4 @@ const s = StyleSheet.create({
   linkTitle: { color: C.accent, fontSize: 15, fontWeight: '700' },
   linkSub: { color: C.sub, fontSize: 12, marginTop: 4 },
 });
+

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -210,3 +210,4 @@ const s = StyleSheet.create({
   sendBtnDisabled: { backgroundColor: C.sub },
   sendBtnText: { color: C.bg, fontSize: 20, fontWeight: '700' },
 });
+

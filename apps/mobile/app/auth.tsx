@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -13,12 +13,12 @@ import {
 import { useAuth } from '@/src/providers/AuthProvider';
 
 const COLORS = {
-  bg: '#0f172a',
-  card: '#1e293b',
-  accent: '#02d7ff',
-  text: '#e8f1ff',
-  sub: '#9ab0c5',
-  border: '#1e2a35',
+  bg: '#0A0A0F',
+  card: '#1A1A2E',
+  accent: '#00D9FF',
+  text: '#E0E0E0',
+  sub: '#8892a0',
+  border: 'rgba(0, 217, 255, 0.15)',
 };
 
 const text = {
@@ -148,13 +148,13 @@ const styles = StyleSheet.create({
   logo: { color: COLORS.accent, fontSize: 40, fontWeight: '800', letterSpacing: 1 },
   tagline: { color: COLORS.sub, fontSize: 14, marginTop: 6 },
   card: { backgroundColor: COLORS.card, borderRadius: 16, padding: 24 },
-  tabs: { flexDirection: 'row', marginBottom: 20, backgroundColor: '#0f172a', borderRadius: 10, padding: 4 },
+  tabs: { flexDirection: 'row', marginBottom: 20, backgroundColor: '#0A0A0F', borderRadius: 10, padding: 4 },
   tab: { flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
   activeTab: { backgroundColor: COLORS.accent },
   tabText: { color: COLORS.sub, fontWeight: '600', fontSize: 14 },
   activeTabText: { color: '#fff' },
   input: {
-    backgroundColor: '#0f172a',
+    backgroundColor: '#0A0A0F',
     color: COLORS.text,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -173,3 +173,4 @@ const styles = StyleSheet.create({
   btnDisabled: { opacity: 0.6 },
   btnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 });
+

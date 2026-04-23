@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '@/src/providers/AuthProvider';
@@ -155,3 +155,4 @@ const s = StyleSheet.create({
   rejectBtn: { backgroundColor: C.red },
   actionText: { color: '#081018', fontWeight: '700' },
 });
+

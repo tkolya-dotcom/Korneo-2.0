@@ -1,9 +1,16 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { tasksApi, installationsApi } from '@/src/lib/supabase';
 
-const C = { bg: '#0f172a', card: '#1e293b', accent: '#02d7ff', text: '#e8f1ff', sub: '#9ab0c5', border: '#1e2a35' };
+const C = {
+  bg: '#0A0A0F',
+  card: '#1A1A2E',
+  accent: '#00D9FF',
+  text: '#E0E0E0',
+  sub: '#8892a0',
+  border: 'rgba(0, 217, 255, 0.15)',
+};
 
 export default function ArchiveScreen() {
   const router = useRouter();
