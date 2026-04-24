@@ -178,9 +178,18 @@ const fetchUsersMap = async (ids: Array<string | null | undefined>) => {
   const { data, error } = await withReadRetry(
     () => supabase.from('users').select('id, name, email, role').in('id', userIds),
     'load users map'
-  );
+  ).catch((reason) => {
+    if (isPermissionDeniedError(reason) || isRelationMissingError(reason) || isColumnMissingError(reason)) {
+      return { data: [], error: null };
+    }
+    throw reason;
+  });
 
-  return toIdMap(handle<any[]>(data, error));
+  const rows = handle<any[]>(data, error).map((item) => ({
+    ...item,
+    id: String(item.id),
+  }));
+  return toIdMap(rows);
 };
 
 const fetchProjectsMap = async (ids: Array<string | null | undefined>) => {
@@ -192,9 +201,18 @@ const fetchProjectsMap = async (ids: Array<string | null | undefined>) => {
   const { data, error } = await withReadRetry(
     () => supabase.from('projects').select('id, name, status, created_by').in('id', projectIds),
     'load projects map'
-  );
+  ).catch((reason) => {
+    if (isPermissionDeniedError(reason) || isRelationMissingError(reason) || isColumnMissingError(reason)) {
+      return { data: [], error: null };
+    }
+    throw reason;
+  });
 
-  return toIdMap(handle<any[]>(data, error));
+  const rows = handle<any[]>(data, error).map((item) => ({
+    ...item,
+    id: String(item.id),
+  }));
+  return toIdMap(rows);
 };
 
 const normalizeProject = (project: any, usersMap: Record<string, any>) => {
@@ -390,38 +408,197 @@ const buildAuthFallbackUser = (authUser: AuthUserLike) => ({
   is_online: false,
 });
 
-const getProfileByAuthUserId = async (authUserId: string) =>
-  safeSingle(
-    () =>
-      supabase
-        .from('users')
-        .select('*')
-        .eq('auth_user_id', authUserId)
-        .single(),
-    'load user profile'
-  );
+const shouldIgnoreProfileLookupError = (error: unknown) =>
+  isColumnMissingError(error) || isRelationMissingError(error) || isPermissionDeniedError(error);
 
-const getProfileByUserId = async (userId: string) =>
-  safeSingle(
-    () =>
-      supabase
-        .from('users')
-        .select('*')
-        .eq('id', userId)
-        .single(),
-    'load user profile by id'
+const isDuplicateError = (error: unknown) => {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+  const typedError = error as { code?: string; message?: string };
+  const message = (typedError.message || '').toLowerCase();
+  return (
+    typedError.code === '23505' ||
+    message.includes('duplicate key') ||
+    message.includes('already exists')
   );
+};
 
-const resolveUserProfile = async (authUser: AuthUserLike) => {
+const normalizeRoleInput = (candidate?: string | null): UserRole => {
+  if (!candidate || typeof candidate !== 'string') {
+    return 'worker';
+  }
+
+  return (VALID_USER_ROLES as readonly string[]).includes(candidate)
+    ? (candidate as UserRole)
+    : 'worker';
+};
+
+const profileBootstrapAttempts = new Set<string>();
+
+const getProfileByAuthUserId = async (authUserId: string) => {
   try {
-    const profile =
-      (await getProfileByAuthUserId(authUser.id)) ||
-      (await getProfileByUserId(authUser.id));
-    return (profile || buildAuthFallbackUser(authUser)) as any;
+    return await safeSingle(
+      () =>
+        supabase
+          .from('users')
+          .select('*')
+          .eq('auth_user_id', authUserId)
+          .single(),
+      'load user profile'
+    );
+  } catch (error) {
+    if (shouldIgnoreProfileLookupError(error)) {
+      return null;
+    }
+    throw error;
+  }
+};
+
+const getProfileByUserId = async (userId: string) => {
+  try {
+    return await safeSingle(
+      () =>
+        supabase
+          .from('users')
+          .select('*')
+          .eq('id', userId)
+          .single(),
+      'load user profile by id'
+    );
+  } catch (error) {
+    if (shouldIgnoreProfileLookupError(error)) {
+      return null;
+    }
+    throw error;
+  }
+};
+
+const getProfileByEmail = async (email?: string | null) => {
+  const normalizedEmail = email?.trim().toLowerCase();
+  if (!normalizedEmail) {
+    return null;
+  }
+
+  try {
+    return await safeSingle(
+      () =>
+        supabase
+          .from('users')
+          .select('*')
+          .ilike('email', normalizedEmail)
+          .single(),
+      'load user profile by email'
+    );
+  } catch (error) {
+    if (shouldIgnoreProfileLookupError(error)) {
+      return null;
+    }
+    throw error;
+  }
+};
+
+const lookupUserProfile = async (authUser: AuthUserLike) => {
+  const candidates = [
+    () => getProfileByAuthUserId(authUser.id),
+    () => getProfileByUserId(authUser.id),
+    () => getProfileByEmail(authUser.email),
+  ];
+
+  for (const candidate of candidates) {
+    const profile = await candidate();
+    if (profile) {
+      return profile;
+    }
+  }
+
+  return null;
+};
+
+const createUserProfileRecord = async (
+  authUser: AuthUserLike,
+  options: { preferredName?: string; preferredRole?: string } = {}
+) => {
+  const email = authUser.email?.trim().toLowerCase() || '';
+  const name = options.preferredName?.trim() || resolveAuthName(authUser);
+  const role = normalizeRoleInput(options.preferredRole ?? resolveAuthRole(authUser));
+
+  const attempts: Array<Record<string, unknown>> = [
+    { id: authUser.id, auth_user_id: authUser.id, email, name, role },
+    { id: authUser.id, email, name, role },
+    { auth_user_id: authUser.id, email, name, role },
+    { id: authUser.id, email, name },
+    { auth_user_id: authUser.id, email, name },
+  ];
+
+  for (const rawAttempt of attempts) {
+    const attempt = Object.fromEntries(
+      Object.entries(rawAttempt).filter(([, value]) => value !== undefined && value !== null && value !== '')
+    );
+
+    if (Object.keys(attempt).length === 0) {
+      continue;
+    }
+
+    const { error } = await supabase.from('users').insert([attempt]).select('id').single();
+    if (!error) {
+      return;
+    }
+
+    if (isDuplicateError(error)) {
+      return;
+    }
+
+    if (isColumnMissingError(error)) {
+      continue;
+    }
+
+    if (isPermissionDeniedError(error) || isRelationMissingError(error)) {
+      return;
+    }
+
+    throw error;
+  }
+};
+
+type ResolveProfileOptions = {
+  createIfMissing?: boolean;
+  preferredName?: string;
+  preferredRole?: string;
+};
+
+const resolveUserProfile = async (authUser: AuthUserLike, options: ResolveProfileOptions = {}) => {
+  const fallbackUser = {
+    ...buildAuthFallbackUser(authUser),
+    ...(options.preferredName?.trim() ? { name: options.preferredName.trim() } : {}),
+    ...(options.preferredRole ? { role: normalizeRoleInput(options.preferredRole) } : {}),
+  };
+
+  try {
+    const existing = await lookupUserProfile(authUser);
+    if (existing) {
+      return existing as any;
+    }
+
+    if (options.createIfMissing && !profileBootstrapAttempts.has(authUser.id)) {
+      profileBootstrapAttempts.add(authUser.id);
+      await createUserProfileRecord(authUser, {
+        preferredName: options.preferredName,
+        preferredRole: options.preferredRole,
+      }).catch((error) => {
+        console.warn('Failed to bootstrap users profile:', error);
+      });
+
+      const profileAfterBootstrap = await lookupUserProfile(authUser);
+      if (profileAfterBootstrap) {
+        return profileAfterBootstrap as any;
+      }
+    }
   } catch (error) {
     console.warn('Using fallback profile because users query failed:', error);
-    return buildAuthFallbackUser(authUser) as any;
   }
+
+  return fallbackUser as any;
 };
 
 const getCurrentProfile = async () => {
@@ -436,7 +613,7 @@ const getCurrentProfile = async () => {
 
   return {
     authUser,
-    user: await resolveUserProfile(authUser as AuthUserLike),
+    user: await resolveUserProfile(authUser as AuthUserLike, { createIfMissing: true }),
   };
 };
 
@@ -451,7 +628,7 @@ export const authApi = {
       throw error;
     }
 
-    const profile = await resolveUserProfile(data.user as AuthUserLike);
+    const profile = await resolveUserProfile(data.user as AuthUserLike, { createIfMissing: true });
 
     return { token: data.session?.access_token || null, user: profile as any };
   },
@@ -477,9 +654,37 @@ export const authApi = {
       throw new Error('Registration failed');
     }
 
-    const profile = await resolveUserProfile(data.user as AuthUserLike);
+    let authUser = data.user as AuthUserLike;
+    let accessToken = data.session?.access_token || null;
+    if (!accessToken) {
+      const signInResult = await withTimeout(
+        supabase.auth.signInWithPassword({ email, password }),
+        'sign in after registration',
+        12000
+      ).catch(() => null);
 
-    return { token: data.session?.access_token || null, user: { ...(profile as any), name, role } };
+      if (signInResult && !(signInResult as any).error) {
+        const signInData = (signInResult as any).data || {};
+        authUser = (signInData.user || authUser) as AuthUserLike;
+        accessToken = signInData.session?.access_token || accessToken;
+      }
+    }
+
+    const normalizedRole = normalizeRoleInput(role);
+    const profile = await resolveUserProfile(authUser, {
+      createIfMissing: true,
+      preferredName: name,
+      preferredRole: normalizedRole,
+    });
+
+    return {
+      token: accessToken,
+      user: {
+        ...(profile as any),
+        name: (profile as any)?.name || name,
+        role: (profile as any)?.role || normalizedRole,
+      },
+    };
   },
 
   getMe: async () => {
@@ -488,46 +693,150 @@ export const authApi = {
   },
 
   getUsers: async (role?: string) => {
-    const { data, error } = await withReadRetry(() => {
-      let query = supabase.from('users').select('*').order('name');
-      if (role) {
-        query = query.eq('role', role);
+    const variants = ['id, name, email, role, is_online, last_seen_at', 'id, name, email, role'];
+    let lastError: unknown;
+
+    for (const columns of variants) {
+      const { data, error } = await withReadRetry(() => {
+        let query = supabase.from('users').select(columns).order('name');
+        if (role) {
+          query = query.eq('role', role);
+        }
+        return query;
+      }, 'load users');
+
+      if (!error) {
+        return (data || []) as any[];
       }
-      return query;
-    }, 'load users');
-    return handle(data, error);
+
+      lastError = error;
+      if (isColumnMissingError(error)) {
+        continue;
+      }
+      if (isPermissionDeniedError(error) || isRelationMissingError(error)) {
+        return [];
+      }
+      throw error;
+    }
+
+    if (lastError) {
+      throw lastError as Error;
+    }
+    return [];
   },
+};
+
+const updatePresenceState = async (
+  authUser: { id: string },
+  user: { id?: string; auth_user_id?: string },
+  patch: Record<string, unknown>
+) => {
+  const candidateIds = uniqueIds([
+    user?.id ? String(user.id) : null,
+    user?.auth_user_id ? String(user.auth_user_id) : null,
+    authUser?.id ? String(authUser.id) : null,
+  ]);
+
+  for (const candidateId of candidateIds) {
+    const { data, error } = await supabase
+      .from('users')
+      .update(patch)
+      .eq('id', candidateId)
+      .select('id');
+
+    if (!error && Array.isArray(data) && data.length > 0) {
+      return;
+    }
+
+    if (error) {
+      if (isPermissionDeniedError(error) || isRelationMissingError(error)) {
+        return;
+      }
+      if (!isColumnMissingError(error)) {
+        throw error;
+      }
+    }
+  }
+
+  if (!authUser?.id) {
+    return;
+  }
+
+  const { error } = await supabase
+    .from('users')
+    .update(patch)
+    .eq('auth_user_id', authUser.id)
+    .select('id');
+
+  if (!error) {
+    return;
+  }
+
+  if (
+    isColumnMissingError(error) ||
+    isPermissionDeniedError(error) ||
+    isRelationMissingError(error)
+  ) {
+    return;
+  }
+
+  throw error;
 };
 
 export const usersApi = {
   getAll: async () => {
-    const { data, error } = await withReadRetry(
-      () =>
-        supabase
-          .from('users')
-          .select('id, name, email, role, is_online, last_seen_at, created_at')
-          .order('name', { ascending: true }),
-      'load users'
-    );
+    const variants = [
+      'id, name, email, role, is_online, last_seen_at, created_at',
+      'id, name, email, role, is_online, last_seen_at',
+      'id, name, email, role',
+    ];
+    let lastError: unknown;
 
-    return handle<any[]>(data, error);
+    for (const columns of variants) {
+      const { data, error } = await withReadRetry(
+        () =>
+          supabase
+            .from('users')
+            .select(columns)
+            .order('name', { ascending: true }),
+        'load users'
+      );
+
+      if (!error) {
+        return (data || []) as any[];
+      }
+
+      lastError = error;
+      if (isColumnMissingError(error)) {
+        continue;
+      }
+      if (isPermissionDeniedError(error) || isRelationMissingError(error)) {
+        return [];
+      }
+      throw error;
+    }
+
+    if (lastError) {
+      throw lastError as Error;
+    }
+    return [];
   },
 
   heartbeat: async () => {
     const { authUser, user } = (await getCurrentProfile()) as any;
-    await supabase
-      .from('users')
-      .update({ is_online: true, last_seen_at: new Date().toISOString() })
-      .eq('id', user.id || authUser.id);
+    await updatePresenceState(authUser, user, {
+      is_online: true,
+      last_seen_at: new Date().toISOString(),
+    });
   },
 
   markOffline: async () => {
     try {
       const { authUser, user } = await getCurrentProfile();
-      await supabase
-        .from('users')
-        .update({ is_online: false, last_seen_at: new Date().toISOString() })
-        .eq('id', user.id || authUser.id);
+      await updatePresenceState(authUser as any, user as any, {
+        is_online: false,
+        last_seen_at: new Date().toISOString(),
+      });
     } catch {
       // Ignore sign-out cleanup errors.
     }
@@ -1756,15 +2065,34 @@ const insertChatMessage = async (payload: {
 
 export const chatApi = {
   getChats: async (): Promise<ChatListItem[]> => {
-    const { user } = await getCurrentProfile();
+    const { authUser, user } = await getCurrentProfile();
+    const currentUserIds = uniqueIds([
+      user?.id ? String(user.id) : null,
+      (user as any)?.auth_user_id ? String((user as any).auth_user_id) : null,
+      authUser?.id ? String(authUser.id) : null,
+    ]);
+    const currentUserId = currentUserIds[0] || String(authUser.id);
+    const currentUserIdSet = new Set(currentUserIds);
+
+    if (!currentUserIds.length) {
+      return [];
+    }
+
     const { data: membershipData, error: membershipError } = await withReadRetry(
       () =>
         supabase
           .from('chat_members')
           .select('*')
-          .eq('user_id', user.id),
-      'load chat memberships'
+          .in('user_id', currentUserIds),
+        'load chat memberships'
     );
+
+    if (membershipError) {
+      if (isPermissionDeniedError(membershipError) || isRelationMissingError(membershipError)) {
+        return [];
+      }
+      throw membershipError;
+    }
 
     const memberships = handle<any[]>(membershipData, membershipError);
     const chatIds = uniqueIds(memberships.map((membership) => membership.chat_id));
@@ -1800,7 +2128,10 @@ export const chatApi = {
 
     const chatsMap = toIdMap(chats.map((chat) => ({ ...chat, id: chat.id as string })));
     const membershipMap = memberships.reduce<Record<string, any>>((acc, membership) => {
-      acc[membership.chat_id] = membership;
+      const existing = acc[membership.chat_id];
+      if (!existing || String(existing.user_id) !== currentUserId) {
+        acc[membership.chat_id] = membership;
+      }
       return acc;
     }, {});
 
@@ -1814,7 +2145,7 @@ export const chatApi = {
 
     const otherMemberIds = uniqueIds(
       allMembers
-        .filter((member) => member.user_id !== user.id)
+        .filter((member) => !currentUserIdSet.has(String(member.user_id)))
         .map((member) => member.user_id)
     );
     const usersMap = await fetchUsersMap(otherMemberIds);
@@ -1830,7 +2161,7 @@ export const chatApi = {
     const unreadEntries = await Promise.all(
       chatIds.map(async (chatId) => {
         const lastSeen = lastSeenMap[chatId] || CHAT_LAST_SEEN_FALLBACK;
-        const unreadCount = await countUnreadMessages(chatId, lastSeen, user.id).catch((error) => {
+        const unreadCount = await countUnreadMessages(chatId, lastSeen, currentUserId).catch((error) => {
           console.warn(`Failed to load unread count for chat ${chatId}:`, error);
           return 0;
         });
@@ -1850,7 +2181,7 @@ export const chatApi = {
 
       const memberInfo = membershipMap[chatId] || {};
       const members = membersByChat[chatId] || [];
-      const partnerMember = members.find((member) => member.user_id !== user.id);
+      const partnerMember = members.find((member) => !currentUserIdSet.has(String(member.user_id)));
       const partner = partnerMember?.user_id ? usersMap[partnerMember.user_id] || null : null;
       const type = (chat.type as string | undefined) || 'private';
       const rawName = (chat.name as string | null | undefined)?.trim();
@@ -2101,11 +2432,18 @@ export const chatApi = {
   },
 
   getContacts: async (search = '') => {
-    const { user } = await getCurrentProfile();
+    const { authUser, user } = await getCurrentProfile();
+    const currentUserIds = new Set(
+      uniqueIds([
+        user?.id ? String(user.id) : null,
+        (user as any)?.auth_user_id ? String((user as any).auth_user_id) : null,
+        authUser?.id ? String(authUser.id) : null,
+      ])
+    );
+
     let query = supabase
       .from('users')
       .select('id, name, role, is_online, last_seen_at')
-      .neq('id', user.id)
       .order('name', { ascending: true })
       .limit(80);
 
@@ -2115,12 +2453,25 @@ export const chatApi = {
     }
 
     const { data, error } = await withReadRetry(() => query, 'load chat contacts');
-    return handle<any[]>(data, error);
+    if (error) {
+      if (isPermissionDeniedError(error) || isRelationMissingError(error) || isColumnMissingError(error)) {
+        return [];
+      }
+      throw error;
+    }
+    return ((data || []) as any[]).filter((item) => !currentUserIds.has(String(item.id)));
   },
 
   openPrivateChat: async (partnerId: string) => {
-    const { user } = await getCurrentProfile();
-    if (!partnerId || partnerId === user.id) {
+    const { authUser, user } = await getCurrentProfile();
+    const actorIds = uniqueIds([
+      user?.id ? String(user.id) : null,
+      (user as any)?.auth_user_id ? String((user as any).auth_user_id) : null,
+      authUser?.id ? String(authUser.id) : null,
+    ]);
+    const primaryActorId = actorIds[0] || String(authUser.id);
+
+    if (!partnerId || actorIds.includes(partnerId)) {
       throw new Error('Некорректный собеседник');
     }
 
@@ -2130,7 +2481,7 @@ export const chatApi = {
           supabase
             .from('chat_members')
             .select('chat_id')
-            .eq('user_id', user.id),
+            .in('user_id', actorIds),
         'load my chat memberships'
       ),
       withReadRetry(
@@ -2166,10 +2517,10 @@ export const chatApi = {
     }
 
     const chatInsertAttempts = [
-      { type: 'private', name: null, created_by: user.id },
-      { type: 'private', created_by: user.id },
-      { name: null, created_by: user.id },
-      { created_by: user.id },
+      { type: 'private', name: null, created_by: primaryActorId },
+      { type: 'private', created_by: primaryActorId },
+      { name: null, created_by: primaryActorId },
+      { created_by: primaryActorId },
     ];
 
     let chatId = '';
@@ -2191,16 +2542,20 @@ export const chatApi = {
       throw lastCreateError ?? new Error('Не удалось создать чат');
     }
 
-    const membersInsertAttempts = [
-      [
-        { chat_id: chatId, user_id: user.id, role: 'member' },
+    const membersInsertAttempts: Array<Array<Record<string, unknown>>> = [];
+    for (const actorId of actorIds) {
+      if (!actorId || actorId === partnerId) {
+        continue;
+      }
+      membersInsertAttempts.push([
+        { chat_id: chatId, user_id: actorId, role: 'member' },
         { chat_id: chatId, user_id: partnerId, role: 'member' },
-      ],
-      [
-        { chat_id: chatId, user_id: user.id },
+      ]);
+      membersInsertAttempts.push([
+        { chat_id: chatId, user_id: actorId },
         { chat_id: chatId, user_id: partnerId },
-      ],
-    ];
+      ]);
+    }
 
     let lastMembersError: unknown;
     for (const attempt of membersInsertAttempts) {

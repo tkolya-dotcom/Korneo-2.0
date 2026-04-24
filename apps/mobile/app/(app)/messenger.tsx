@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   Modal,
   RefreshControl,
   ScrollView,
@@ -49,6 +50,55 @@ const MAP_FILTER_LABEL: Record<JobMapFilter, string> = {
   all: 'Все',
   active: 'В работе',
   done: 'Завершены',
+};
+
+const MAPBOX_TOKEN =
+  process.env.EXPO_PUBLIC_MAPBOX_TOKEN ||
+  'pk.eyJ1IjoidGtvbHlhIiwiYSI6ImNtbXZ0eGI1ODJkbnIycXNkMTBteWNvd20ifQ.m0WVg1Ix7RuR3AJyHDHRtg';
+
+const MAPBOX_STYLE_ID = 'mapbox/dark-v11';
+const MAX_MAP_PREVIEW_MARKERS = 18;
+
+const toCoord = (value: unknown) => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number(value.trim().replace(',', '.'));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
+
+const toMapPinColor = (status?: string | null) => {
+  if (status === 'done') return '10B981';
+  if (status === 'active') return 'F59E0B';
+  return '00D9FF';
+};
+
+const buildMapPreviewUrl = (
+  points: Array<{ lat: number; lng: number; status?: string | null }>
+) => {
+  if (!MAPBOX_TOKEN || points.length === 0) {
+    return '';
+  }
+
+  const limitedPoints = points.slice(0, MAX_MAP_PREVIEW_MARKERS);
+  const center = limitedPoints.reduce(
+    (acc, point) => ({
+      lat: acc.lat + point.lat,
+      lng: acc.lng + point.lng,
+    }),
+    { lat: 0, lng: 0 }
+  );
+
+  const centerLat = center.lat / limitedPoints.length;
+  const centerLng = center.lng / limitedPoints.length;
+  const overlay = limitedPoints
+    .map((point) => `pin-s+${toMapPinColor(point.status)}(${point.lng},${point.lat})`)
+    .join(',');
+
+  return `https://api.mapbox.com/styles/v1/${MAPBOX_STYLE_ID}/static/${overlay}/${centerLng},${centerLat},10.6,0/1200x700?access_token=${MAPBOX_TOKEN}&attribution=false&logo=false`;
 };
 
 const toMessageText = (message: any) => {
@@ -332,6 +382,28 @@ export default function MessengerScreen() {
       return haystack.includes(query);
     });
   }, [jobs, mapFilter, search]);
+
+  const mapPoints = useMemo(
+    () =>
+      filteredJobs
+        .map((job) => {
+          const lat = toCoord(job.lat ?? job.latitude);
+          const lng = toCoord(job.lng ?? job.longitude);
+          if (lat == null || lng == null) {
+            return null;
+          }
+          return {
+            id: String(job.id),
+            lat,
+            lng,
+            status: job.status as string | null | undefined,
+          };
+        })
+        .filter(Boolean) as Array<{ id: string; lat: number; lng: number; status?: string | null }>,
+    [filteredJobs]
+  );
+
+  const mapPreviewUrl = useMemo(() => buildMapPreviewUrl(mapPoints), [mapPoints]);
 
   const analytics = useMemo(() => {
     const todayStart = getTodayStart();
@@ -619,6 +691,18 @@ export default function MessengerScreen() {
           <FlatList
             data={filteredJobs}
             keyExtractor={(item) => String(item.id)}
+            ListHeaderComponent={
+              <View style={s.mapCard}>
+                {mapPreviewUrl ? (
+                  <>
+                    <Image source={{ uri: mapPreviewUrl }} style={s.mapPreview} resizeMode="cover" />
+                    <Text style={s.mapHint}>Mapbox • отображено точек: {mapPoints.length}</Text>
+                  </>
+                ) : (
+                  <Text style={s.mapHint}>Нет координат для отображения карты</Text>
+                )}
+              </View>
+            }
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.accent} />
             }
@@ -892,6 +976,25 @@ const s = StyleSheet.create({
   },
   unreadBadgeMuted: { backgroundColor: '#7A2530' },
   unreadBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  mapCard: {
+    backgroundColor: C.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  mapPreview: {
+    width: '100%',
+    height: 220,
+    backgroundColor: '#101523',
+  },
+  mapHint: {
+    color: C.sub,
+    fontSize: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
   jobCard: {
     backgroundColor: C.card,
     borderRadius: 14,

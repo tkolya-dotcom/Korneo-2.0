@@ -91,23 +91,14 @@ export default function AppTabsLayout() {
       />
 
       <Tabs.Screen name="archive" options={{ href: null }} />
-
-      <Tabs.Screen name="project" options={{ href: null }} />
       <Tabs.Screen name="project/[id]" options={{ href: null }} />
-
-      <Tabs.Screen name="task" options={{ href: null }} />
       <Tabs.Screen name="task/[id]" options={{ href: null }} />
       <Tabs.Screen name="task/create/index" options={{ href: null }} />
       <Tabs.Screen name="task/[id]/comments/index" options={{ href: null }} />
-
-      <Tabs.Screen name="installation" options={{ href: null }} />
       <Tabs.Screen name="installation/[id]" options={{ href: null }} />
       <Tabs.Screen name="installation/create/index" options={{ href: null }} />
       <Tabs.Screen name="installation/[id]/comments/index" options={{ href: null }} />
-
-      <Tabs.Screen name="purchase-request" options={{ href: null }} />
       <Tabs.Screen name="purchase-request/[id]" options={{ href: null }} />
-
       <Tabs.Screen name="profile" options={{ href: null }} />
       <Tabs.Screen name="chat/[id]" options={{ href: null }} />
       <Tabs.Screen name="warehouse" options={{ href: null }} />
