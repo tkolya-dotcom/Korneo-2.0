@@ -1,6 +1,8 @@
-import { Tabs } from 'expo-router';
+import { Redirect, Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { ActivityIndicator, Platform, View } from 'react-native';
 import { COLORS } from '@/src/theme/colors';
+import { useAuth } from '@/src/providers/AuthProvider';
 
 type TabIconName = keyof typeof Ionicons.glyphMap;
 
@@ -19,6 +21,21 @@ const tabIcon =
     <Ionicons name={name} color={color} size={size} />;
 
 export default function AppTabsLayout() {
+  const { loading, session, user } = useAuth();
+  const hasActiveSession = Boolean(session?.access_token && session?.user?.id && user?.id);
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.bg }}>
+        <ActivityIndicator color={COLORS.accent} size="large" />
+      </View>
+    );
+  }
+
+  if (!hasActiveSession) {
+    return <Redirect href="/auth" />;
+  }
+
   return (
     <Tabs
       screenOptions={{
@@ -27,18 +44,21 @@ export default function AppTabsLayout() {
         headerTitleStyle: { fontWeight: '700', color: COLORS.text },
         headerShadowVisible: false,
         tabBarHideOnKeyboard: true,
+        tabBarLabelPosition: 'below-icon',
+        tabBarAllowFontScaling: false,
         tabBarStyle: {
           backgroundColor: COLORS.card,
           borderTopColor: COLORS.border,
           borderTopWidth: 1,
-          height: 66,
+          height: Platform.OS === 'ios' ? 82 : 64,
           paddingTop: 4,
-          paddingBottom: 8,
+          paddingBottom: Platform.OS === 'ios' ? 18 : 8,
         },
-        tabBarItemStyle: { paddingVertical: 2 },
+        tabBarItemStyle: { paddingVertical: 2, minWidth: 0 },
+        tabBarIconStyle: { marginTop: 1 },
         tabBarActiveTintColor: COLORS.accent,
         tabBarInactiveTintColor: COLORS.sub,
-        tabBarLabelStyle: { fontSize: 9, fontWeight: '700', marginBottom: 2 },
+        tabBarLabelStyle: { fontSize: 10, lineHeight: 12, fontWeight: '700', marginBottom: 2 },
       }}
     >
       <Tabs.Screen

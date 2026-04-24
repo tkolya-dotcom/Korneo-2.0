@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authApi, usersApi, supabase, withTimeout } from '@/src/lib/supabase';
 
 export type UserRole = 'worker' | 'engineer' | 'manager' | 'deputy_head' | 'admin' | 'support';
@@ -45,8 +46,9 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-const fallbackName = '\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c';
 const validRoles: UserRole[] = ['worker', 'engineer', 'manager', 'deputy_head', 'admin', 'support'];
+const AUTH_BOOTSTRAP_VERSION = '2';
+const AUTH_BOOTSTRAP_KEY = '@korneo/auth_bootstrap_version';
 
 type AuthMetadataUser = {
   email?: string | null;
@@ -72,16 +74,8 @@ const resolveNameFromAuth = (authUser: AuthMetadataUser): string => {
     return metadataName.trim();
   }
 
-  return authUser.email?.split('@')[0] || fallbackName;
+  return authUser.email?.split('@')[0] || '\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c';
 };
-
-const fallbackUser = (authUser: { id: string; email?: string | null }): User => ({
-  id: authUser.id,
-  auth_user_id: authUser.id,
-  email: authUser.email || '',
-  name: resolveNameFromAuth(authUser),
-  role: resolveRoleFromAuth(authUser),
-});
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -119,6 +113,21 @@ const signOutLocalFirst = async () => {
   await supabase.auth.signOut();
 };
 
+const resetStaleSessionOnFirstLaunch = async () => {
+  const version = await AsyncStorage.getItem(AUTH_BOOTSTRAP_KEY);
+  if (version === AUTH_BOOTSTRAP_VERSION) {
+    return;
+  }
+
+  try {
+    await signOutLocalFirst();
+  } catch (error) {
+    console.warn('Initial auth reset failed:', error);
+  }
+
+  await AsyncStorage.setItem(AUTH_BOOTSTRAP_KEY, AUTH_BOOTSTRAP_VERSION);
+};
+
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<any>(null);
@@ -152,6 +161,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const init = async () => {
       try {
+        await resetStaleSessionOnFirstLaunch();
+
         let sessionResponse;
         try {
           sessionResponse = await withTimeout(supabase.auth.getSession(), 'restore session', 6000);
