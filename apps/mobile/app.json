@@ -28,6 +28,14 @@
         }
       ],
       "expo-notifications",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#00D9FF",
+          "sounds": []
+        }
+      ],
       "expo-router"
     ],
     "android": {

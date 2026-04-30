@@ -149,8 +149,24 @@ const formatDateTime = (value?: string | null) => {
   });
 };
 
-const errorMessage = (error: unknown, fallback: string) =>
-  error instanceof Error ? error.message : fallback;
+const errorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error) {
+    // Provide more context for common errors
+    const msg = error.message.toLowerCase();
+    if (msg.includes('permission') || msg.includes('denied') || msg.includes('401')) {
+      return 'Нет прав для выполнения операции. Обратитесь к администратору.';
+    }
+    if (msg.includes('not found') || msg.includes('does not exist')) {
+      return 'Таблица или данные не найдены. Обратитесь к администратору.';
+    }
+    if (msg.includes('foreign key') || msg.includes('violates')) {
+      return 'Нарушены связи с другими данными. Проверьте выбор сотрудника и материалов.';
+    }
+    return error.message;
+  }
+  if (typeof error === 'string') return error;
+  return fallback;
+};
 
 export default function WarehouseScreen() {
   const { canViewWarehouse } = useAuth();

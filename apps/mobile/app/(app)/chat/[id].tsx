@@ -147,27 +147,51 @@ export default function ChatDetailScreen() {
 
   const loadMessagesAndJobs = useCallback(async () => {
     if (!id) return;
+    console.log('[ChatDebug] Loading messages for chat:', id);
     const [messagesResult, jobsResult] = await Promise.allSettled([
       chatApi.getMessages(id),
       jobsApi.getAll({ chat_id: id }),
     ]);
 
     if (messagesResult.status === 'fulfilled') {
-      setMessages((messagesResult.value || []).slice(-DEFAULT_MESSAGE_WINDOW));
+      const rawMessages = messagesResult.value || [];
+      console.log('[ChatDebug] Raw messages count:', rawMessages.length);
+      console.log('[ChatDebug] User id from useAuth:', user?.id);
+      console.log('[ChatDebug] User id type:', typeof user?.id);
+      
+      // Debug: Check for any auth-related IDs
+      console.log('[ChatDebug] All raw message fields:', Object.keys(rawMessages[0] || {}).join(', '));
+      console.log('[ChatDebug] First 3 messages author_ids:', rawMessages.slice(0, 3).map(m => ({
+        id: m.id,
+        author_id: m.author_id,
+        user_id: m.user_id,
+        sender_id: m.sender_id,
+        created_by: m.created_by,
+        text: typeof m.text === 'string' ? m.text.slice(0, 30) : 'N/A'
+      })));
+      
+      // Use all messages, not just last 250 for better UX
+      const messagesToShow = rawMessages.slice(-DEFAULT_MESSAGE_WINDOW);
+      setMessages(messagesToShow);
+      
+      console.log('[ChatDebug] Set messages count:', messagesToShow.length);
+      
       await chatApi.markChatAsRead(id).catch((error) => {
         console.warn('Failed to mark chat as read:', error);
       });
-      requestAnimationFrame(() => {
+      
+      // Delay scroll to ensure render completes
+      setTimeout(() => {
         scrollRef.current?.scrollToEnd({ animated: false });
-      });
+      }, 100);
     } else {
-      console.error('Failed to load chat messages:', messagesResult.reason);
+      console.error('[ChatDebug] Failed to load chat messages:', messagesResult.reason);
     }
 
     if (jobsResult.status === 'fulfilled') {
       setJobs(jobsResult.value || []);
     } else {
-      console.warn('Failed to load chat jobs:', jobsResult.reason);
+      console.warn('[ChatDebug] Failed to load chat jobs:', jobsResult.reason);
       setJobs([]);
     }
   }, [id]);
@@ -530,9 +554,12 @@ export default function ChatDetailScreen() {
       >
         {messages.length === 0 ? (
           <Text style={s.empty}>Сообщений пока нет</Text>
-        ) : (
-          messages.map((message) => {
-            const isOwn = Boolean(user?.id) && String(message.author_id || '') === String(user?.id || '');
+        ) : messages.map((message) => {
+            // Нормализуем author_id: приводим к строке для корректного сравнения
+            // ID может приходить как число из БД, а user?.id может быть строкой
+            const messageAuthorId = String(message.author_id ?? message.user_id ?? message.sender_id ?? message.created_by ?? '').trim();
+            const userIdStr = String(user?.id ?? '').trim();
+            const isOwn = Boolean(user?.id) && messageAuthorId === userIdStr;
             const readState = getReadState(message, membersCount);
             const isJobMessage = message.type === 'job' || Boolean(message.job_id);
             const job = message.job || null;

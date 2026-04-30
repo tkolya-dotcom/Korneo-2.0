@@ -154,7 +154,6 @@ export default function PurchaseRequestCreateScreen() {
     try {
       setSaving(true);
       const created = await purchaseRequestsApi.create({
-        status: 'pending',
         comment: comment.trim() || null,
         receipt_address: normalizeAddressForDisplay(addressQuery) || null,
         task_id: linkMode === 'task' ? selectedTaskId : null,

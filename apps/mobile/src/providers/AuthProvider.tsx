@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authApi, usersApi, supabase, withTimeout } from '@/src/lib/supabase';
+import { initializePushNotifications, unregisterDeviceFromPush } from '@/src/lib/pushNotifications';
 
 export type UserRole = 'worker' | 'engineer' | 'manager' | 'deputy_head' | 'admin' | 'support';
 
@@ -315,6 +316,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUser(normalizedUser);
         await saveCachedUser(authUser.id, normalizedUser);
         usersApi.heartbeat();
+        // Initialize push notifications
+        await initializePushNotifications(normalizedUser.id);
         return true;
       } catch (error) {
         console.error('Error getting user profile:', error);
@@ -418,6 +421,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setUser(normalizedUser);
     await saveCachedUser(normalizedUser.auth_user_id || normalizedUser.id, normalizedUser);
     usersApi.heartbeat();
+    // Initialize push notifications after successful login
+    await initializePushNotifications(normalizedUser.id);
     return data;
   };
 
@@ -439,6 +444,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       await usersApi.markOffline();
     } catch {}
+
+    // Unregister from push notifications
+    if (user?.id) {
+      await unregisterDeviceFromPush(user.id);
+    }
 
     try {
       await signOutLocalFirst();

@@ -290,33 +290,258 @@ const normalizePurchaseRequest = (
 
 const PURCHASE_REQUEST_ITEM_KEYS = ['purchase_request_id', 'request_id'] as const;
 
-const loadPurchaseRequestItems = async (requestId: string) => {
-  for (const foreignKey of PURCHASE_REQUEST_ITEM_KEYS) {
-    const { data, error } = await withReadRetry(
-      () => supabase.from('purchase_request_items').select('*').eq(foreignKey, requestId),
-      `load purchase request items by ${foreignKey}`
-    );
-
-    if (!error) {
-      return data || [];
+const parsePurchaseRequestItemsInput = (value: unknown): Record<string, unknown>[] => {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'));
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return [];
     }
+    try {
+      const parsed = JSON.parse(trimmed);
+      return Array.isArray(parsed)
+        ? parsed.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))
+        : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
 
+const normalizePurchaseRequestItems = (rawItems: Record<string, unknown>[]) =>
+  rawItems
+    .map((item) => {
+      const material = item.material && typeof item.material === 'object' ? (item.material as Record<string, unknown>) : null;
+      const name = String(
+        item.name ??
+          item.title ??
+          item.material_name ??
+          item.materialName ??
+          material?.name ??
+          ''
+      ).trim();
+      const quantityRaw = item.quantity ?? item.qty ?? item.count ?? 0;
+      const quantityParsed =
+        typeof quantityRaw === 'number'
+          ? quantityRaw
+          : Number.parseFloat(String(quantityRaw).replace(',', '.'));
+      const quantity = Number.isFinite(quantityParsed) ? quantityParsed : 0;
+      const unit = String(item.unit ?? item.measure ?? material?.default_unit ?? 'шт').trim() || 'шт';
+      const materialId = String(
+        item.material_id ??
+          item.materialId ??
+          item.id_material ??
+          material?.id ??
+          ''
+      ).trim();
+
+      return {
+        name,
+        quantity,
+        unit,
+        material_id: materialId || null,
+      };
+    })
+    .filter((item) => (item.name || item.material_id) && item.quantity > 0);
+
+const extractPurchaseRequestItemsFromRequest = (request: Record<string, unknown>) => {
+  const candidates = [
+    request.items,
+    request.positions,
+    request.materials,
+    request.request_items,
+    request.payload_items,
+  ];
+  const parsed = candidates.flatMap((candidate) => parsePurchaseRequestItemsInput(candidate));
+  return normalizePurchaseRequestItems(parsed);
+};
+
+const mergePurchaseRequestItems = (
+  primary: Record<string, unknown>[],
+  secondary: Record<string, unknown>[]
+) => {
+  const normalized = normalizePurchaseRequestItems([...primary, ...secondary]);
+  const seen = new Set<string>();
+  return normalized.filter((item) => {
+    const key = `${item.material_id || ''}|${item.name}|${item.quantity}|${item.unit}`
+      .toLowerCase()
+      .trim();
+    if (!key || seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+};
+
+const resolveWarehouseMaterialIdForPurchase = (row: Record<string, unknown>) =>
+  String(row.material_id ?? row.id_material ?? row.product_id ?? row.materialId ?? '').trim();
+
+const resolveWarehouseQuantityForPurchase = (row: Record<string, unknown>) => {
+  const candidates = [row.quantity_available, row.quantity, row.qty];
+  for (const candidate of candidates) {
+    if (typeof candidate === 'number' && Number.isFinite(candidate)) {
+      return candidate;
+    }
+    const parsed = Number(candidate);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return 0;
+};
+
+const resolvePurchaseRequestAutoStatus = async (items: Record<string, unknown>[]) => {
+  const normalizedItems = normalizePurchaseRequestItems(items);
+  const materialIds = uniqueIds(
+    normalizedItems.map((item) => (item.material_id ? String(item.material_id) : null))
+  );
+
+  if (!materialIds.length) {
+    return 'pending';
+  }
+
+  const stockAttempts: Array<() => PromiseLike<{ data: any; error: any }>> = [
+    () =>
+      supabase
+        .from('warehouse')
+        .select('material_id, quantity_available, quantity, qty, id_material, product_id')
+        .in('material_id', materialIds),
+    () =>
+      supabase
+        .from('warehouse')
+        .select('id_material, quantity_available, quantity, qty, material_id, product_id')
+        .in('id_material', materialIds),
+    () =>
+      supabase
+        .from('warehouse')
+        .select('product_id, quantity_available, quantity, qty, material_id, id_material')
+        .in('product_id', materialIds),
+    () => supabase.from('warehouse').select('*').limit(3000),
+  ];
+
+  let stockRows: Record<string, unknown>[] = [];
+  for (const attempt of stockAttempts) {
+    const { data, error } = await withReadRetry(attempt, 'load warehouse stock for purchase request');
+    if (!error) {
+      stockRows = (data || []) as Record<string, unknown>[];
+      break;
+    }
     if (!isColumnMissingError(error)) {
+      if (isRelationMissingError(error) || isPermissionDeniedError(error)) {
+        return 'pending';
+      }
       throw error;
     }
+  }
+
+  const stockByMaterial = stockRows.reduce<Record<string, number>>((acc, row) => {
+    const materialId = resolveWarehouseMaterialIdForPurchase(row);
+    if (!materialId || !materialIds.includes(materialId)) {
+      return acc;
+    }
+    acc[materialId] = (acc[materialId] || 0) + resolveWarehouseQuantityForPurchase(row);
+    return acc;
+  }, {});
+
+  const hasAllInStock = normalizedItems.every((item) => {
+    const materialId = String(item.material_id || '').trim();
+    if (!materialId) {
+      return false;
+    }
+    const required = Number(item.quantity || 0);
+    return Number(stockByMaterial[materialId] || 0) >= required;
+  });
+
+  return hasAllInStock ? 'ready_for_receipt' : 'pending';
+};
+
+const loadPurchaseRequestItems = async (requestId: string, request?: Record<string, unknown>) => {
+  // Сначала пробуем загрузить из таблицы purchase_request_items
+  for (const foreignKey of PURCHASE_REQUEST_ITEM_KEYS) {
+    try {
+      const { data, error } = await withReadRetry(
+        () => supabase.from('purchase_request_items').select('*').eq(foreignKey, requestId),
+        `load purchase request items by ${foreignKey}`
+      );
+      if (!error) {
+        const normalized = normalizePurchaseRequestItems((data || []) as Record<string, unknown>[]);
+        if (normalized.length > 0) {
+          return normalized;
+        }
+      }
+      if (!isColumnMissingError(error)) {
+        break;
+      }
+    } catch (error) {
+      if (isRelationMissingError(error) || isPermissionDeniedError(error)) {
+        break;
+      }
+      if (isColumnMissingError(error)) {
+        continue;
+      }
+      break;
+    }
+  }
+
+  // Fallback: пытаемся извлечь items из самого request
+  if (request) {
+    const embedded = extractPurchaseRequestItemsFromRequest(request);
+    if (embedded.length > 0) {
+      return embedded;
+    }
+  }
+
+  // Пробуем загрузить сам request для извлечения items
+  try {
+    const { data: requestData } = await supabase
+      .from('purchase_requests')
+      .select('items, positions, materials, request_items, payload_items')
+      .eq('id', requestId)
+      .maybeSingle();
+    
+    if (requestData) {
+      const fromRequest = extractPurchaseRequestItemsFromRequest(requestData as Record<string, unknown>);
+      if (fromRequest.length > 0) {
+        return fromRequest;
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to load items from request:', e);
   }
 
   return [];
 };
 
 const insertPurchaseRequestItems = async (requestId: string, items: Record<string, unknown>[]) => {
-  if (items.length === 0) {
+  const normalizedItems = normalizePurchaseRequestItems(items);
+  if (normalizedItems.length === 0) {
     return;
   }
 
+  const saveItemsAsJsonFallback = async () => {
+    const updateAttempts = ['items', 'positions', 'materials'];
+    for (const column of updateAttempts) {
+      const payload = { [column]: normalizedItems };
+      const { error } = await supabase.from('purchase_requests').update(payload).eq('id', requestId);
+      if (!error) {
+        return;
+      }
+      if (!isColumnMissingError(error)) {
+        if (isRelationMissingError(error) || isPermissionDeniedError(error)) {
+          return;
+        }
+        throw error;
+      }
+    }
+  };
+
   let lastError: unknown;
   for (const foreignKey of PURCHASE_REQUEST_ITEM_KEYS) {
-    const preparedItems = items.map((item) => ({
+    const preparedItems = normalizedItems.map((item) => ({
       ...item,
       [foreignKey]: requestId,
     }));
@@ -328,8 +553,17 @@ const insertPurchaseRequestItems = async (requestId: string, items: Record<strin
 
     lastError = error;
     if (!isColumnMissingError(error)) {
+      if (isRelationMissingError(error) || isPermissionDeniedError(error)) {
+        await saveItemsAsJsonFallback();
+        return;
+      }
       throw error;
     }
+  }
+
+  if (lastError && isColumnMissingError(lastError)) {
+    await saveItemsAsJsonFallback();
+    return;
   }
 
   throw lastError ?? new Error('Failed to insert purchase request items');
@@ -1787,10 +2021,15 @@ export const purchaseRequestsApi = {
     );
 
     const request = handle<any>(data, error);
-    const [items, usersMap] = await Promise.all([
-      loadPurchaseRequestItems(id),
+    const [loadedItems, usersMap] = await Promise.all([
+      loadPurchaseRequestItems(id, request as Record<string, unknown>),
       fetchUsersMap([request.created_by, request.approved_by]),
     ]);
+    const embeddedItems = extractPurchaseRequestItemsFromRequest(request as Record<string, unknown>);
+    const items = mergePurchaseRequestItems(
+      loadedItems as Record<string, unknown>[],
+      embeddedItems as Record<string, unknown>[]
+    );
 
     const [taskResult, installationResult] = await Promise.all([
       request.task_id
@@ -1838,10 +2077,15 @@ export const purchaseRequestsApi = {
   create: async (request: Record<string, any>) => {
     const { items = [], ...rest } = request;
     const { user } = (await getCurrentProfile()) as any;
+    const normalizedItems = normalizePurchaseRequestItems((items || []) as Record<string, unknown>[]);
+    const autoStatus = await resolvePurchaseRequestAutoStatus(normalizedItems);
+    const requestedStatus = typeof rest.status === 'string' ? rest.status.trim() : '';
+    const finalStatus =
+      requestedStatus && requestedStatus !== 'pending' ? requestedStatus : autoStatus;
 
     const { data: createdRequest, error: requestError } = await supabase
       .from('purchase_requests')
-      .insert([{ ...rest, created_by: user.id }])
+      .insert([{ ...rest, status: finalStatus, created_by: user.id }])
       .select()
       .single();
 
@@ -1849,8 +2093,12 @@ export const purchaseRequestsApi = {
       throw requestError;
     }
 
-    await insertPurchaseRequestItems(createdRequest.id, items as Record<string, unknown>[]);
-    return createdRequest;
+    await insertPurchaseRequestItems(createdRequest.id, normalizedItems as Record<string, unknown>[]);
+    return {
+      ...createdRequest,
+      status: finalStatus,
+      items: normalizedItems,
+    };
   },
 
   updateStatus: async (id: string, status: string, comment?: string) => {
@@ -2252,145 +2500,11 @@ export const warehouseApi = {
       ? payload.issued_at
       : issuedAtDate.toISOString();
 
-    const materialIds = uniqueIds(normalizedItems.map((item) => item.material_id));
-    const stockAttempts: Array<() => PromiseLike<{ data: any; error: any }>> = [
-      () =>
-        supabase
-          .from('warehouse')
-          .select('id, material_id, quantity_available, quantity, qty, id_material, product_id')
-          .in('material_id', materialIds),
-      () =>
-        supabase
-          .from('warehouse')
-          .select('id, id_material, quantity_available, quantity, qty, material_id, product_id')
-          .in('id_material', materialIds),
-      () =>
-        supabase
-          .from('warehouse')
-          .select('id, product_id, quantity_available, quantity, qty, material_id, id_material')
-          .in('product_id', materialIds),
-      () => supabase.from('warehouse').select('*').limit(3000),
-    ];
-
-    let stock: any[] = [];
-    let stockLastError: unknown = null;
-    for (const stockAttempt of stockAttempts) {
-      const { data, error } = await withReadRetry(stockAttempt, 'load warehouse stock for issue');
-      if (!error) {
-        stock = handle<any[]>(data, error);
-        stockLastError = null;
-        break;
-      }
-      stockLastError = error;
-      if (isColumnMissingError(error)) {
-        continue;
-      }
-      throw error;
-    }
-
-    if (stockLastError && !isColumnMissingError(stockLastError)) {
-      throw stockLastError as Error;
-    }
-
-    const stockMap = stock.reduce<Record<string, any>>((acc, row) => {
-      const materialId = resolveWarehouseMaterialId(row);
-      if (!materialId || !materialIds.includes(materialId)) {
-        return acc;
-      }
-      acc[materialId] = row;
-      return acc;
-    }, {});
-
-    for (const item of normalizedItems) {
-      const row = stockMap[item.material_id];
-      const available =
-        typeof row?.quantity_available === 'number'
-          ? row.quantity_available
-          : typeof row?.quantity === 'number'
-            ? row.quantity
-            : typeof row?.qty === 'number'
-              ? row.qty
-              : Number.isFinite(Number(row?.quantity_available))
-                ? Number(row?.quantity_available)
-                : Number.isFinite(Number(row?.quantity))
-                  ? Number(row?.quantity)
-                  : Number.isFinite(Number(row?.qty))
-                    ? Number(row?.qty)
-                    : 0;
-      if (available < item.quantity) {
-        throw new Error('Недостаточно материала на складе');
-      }
-    }
-
-    const applyStockDeduction = async () => {
-      for (const item of normalizedItems) {
-        const row = stockMap[item.material_id];
-        const currentQty =
-          typeof row?.quantity_available === 'number'
-            ? row.quantity_available
-            : typeof row?.quantity === 'number'
-              ? row.quantity
-              : typeof row?.qty === 'number'
-                ? row.qty
-                : Number.isFinite(Number(row?.quantity_available))
-                  ? Number(row?.quantity_available)
-                  : Number.isFinite(Number(row?.quantity))
-                    ? Number(row?.quantity)
-                    : Number.isFinite(Number(row?.qty))
-                      ? Number(row?.qty)
-                      : 0;
-        const nextQty = Math.max(0, currentQty - item.quantity);
-        const nowIso = new Date().toISOString();
-
-        const attempts = [
-          { quantity_available: nextQty, last_updated: nowIso, updated_at: nowIso },
-          { quantity_available: nextQty, updated_at: nowIso },
-          { quantity: nextQty, last_updated: nowIso, updated_at: nowIso },
-          { quantity: nextQty, updated_at: nowIso },
-        ];
-
-        let lastError: unknown;
-        for (const attempt of attempts) {
-          const query = row?.id
-            ? supabase.from('warehouse').update(attempt).eq('id', row.id)
-            : row?.material_id
-              ? supabase.from('warehouse').update(attempt).eq('material_id', row.material_id)
-              : row?.id_material
-                ? supabase.from('warehouse').update(attempt).eq('id_material', row.id_material)
-                : row?.product_id
-                  ? supabase.from('warehouse').update(attempt).eq('product_id', row.product_id)
-                  : supabase.from('warehouse').update(attempt).eq('material_id', item.material_id);
-          const { error } = await query;
-
-          if (!error) {
-            lastError = null;
-            break;
-          }
-
-          lastError = error;
-          if (!isColumnMissingError(error)) {
-            throw error;
-          }
-        }
-
-        if (lastError) {
-          throw lastError;
-        }
-      }
-    };
-
     const profileResult = await getCurrentProfile().catch(() => null);
     const issuerId = profileResult?.user?.id ? String(profileResult.user.id) : null;
 
-    const issuePayload = {
-      issued_at: normalizedIssuedAt,
-      issued_to: payload.issued_to,
-      purpose: payload.purpose || null,
-      task_avr_id: payload.task_avr_id || null,
-      created_by: issuerId,
-    };
-
-    const saveMaterialsUsageFallback = async () => {
+    // Сначала попробуем создать запись в materials_usage (основная таблица для выдач)
+    const saveToMaterialsUsage = async () => {
       for (const item of normalizedItems) {
         const usageAttempts: Array<Record<string, unknown>> = [
           {
@@ -2401,6 +2515,7 @@ export const warehouseApi = {
             user_id: issuerId,
             purpose: payload.purpose || null,
             task_avr_id: payload.task_avr_id || null,
+            created_at: normalizedIssuedAt,
           },
           {
             material_id: item.material_id,
@@ -2439,80 +2554,162 @@ export const warehouseApi = {
       }
     };
 
-    const issueAttempts = [issuePayload, { ...issuePayload, created_by: undefined }];
-    let issue: any = null;
-    let issueError: unknown = null;
-    let useMaterialsUsageFallback = false;
-
-    for (const attemptRaw of issueAttempts) {
-      const attempt = Object.fromEntries(
-        Object.entries(attemptRaw).filter(([, value]) => value !== undefined)
-      );
-
-      const { data, error } = await supabase
-        .from('warehouse_issues')
-        .insert(attempt)
-        .select()
-        .single();
-
-      if (!error) {
-        issue = data;
-        issueError = null;
-        break;
-      }
-
-      issueError = error;
-      if (isColumnMissingError(error)) {
-        continue;
-      }
-      if (isRelationMissingError(error) || isPermissionDeniedError(error)) {
-        useMaterialsUsageFallback = true;
-        break;
-      }
-      throw error;
-    }
-
-    if (!issue && !useMaterialsUsageFallback) {
-      throw issueError ?? new Error('Не удалось создать выдачу');
-    }
-
-    if (issue && !useMaterialsUsageFallback) {
-      const { error: itemsError } = await supabase.from('warehouse_issue_items').insert(
-        normalizedItems.map((item) => ({
-          issue_id: issue.id,
-          material_id: item.material_id,
-          quantity: item.quantity,
-        }))
-      );
-
-      if (itemsError) {
-        if (
-          isColumnMissingError(itemsError) ||
-          isRelationMissingError(itemsError) ||
-          isPermissionDeniedError(itemsError)
-        ) {
-          useMaterialsUsageFallback = true;
-        } else {
-          throw itemsError;
-        }
-      }
-    }
-
-    await applyStockDeduction();
-
-    if (useMaterialsUsageFallback || !issue) {
-      await saveMaterialsUsageFallback();
-      return {
-        id: `fallback-${Date.now()}`,
+    // Попробуем создать запись в warehouse_issues
+    const tryWarehouseIssues = async () => {
+      const issuePayload = {
         issued_at: normalizedIssuedAt,
         issued_to: payload.issued_to,
         purpose: payload.purpose || null,
         task_avr_id: payload.task_avr_id || null,
-        source: 'materials_usage',
+        created_by: issuerId,
       };
+
+      const issueAttempts = [
+        issuePayload,
+        { ...issuePayload, created_by: undefined },
+        { issued_at: normalizedIssuedAt, issued_to: payload.issued_to },
+      ];
+
+      for (const attemptRaw of issueAttempts) {
+        const attempt = Object.fromEntries(
+          Object.entries(attemptRaw).filter(([, value]) => value !== undefined)
+        );
+
+        const { data, error } = await supabase
+          .from('warehouse_issues')
+          .insert(attempt)
+          .select()
+          .single();
+
+        if (!error && data) {
+          // Попробуем добавить позиции выдачи
+          const itemsAttempts = [
+            normalizedItems.map((item) => ({
+              issue_id: data.id,
+              material_id: item.material_id,
+              quantity: item.quantity,
+            })),
+            normalizedItems.map((item) => ({
+              warehouse_issue_id: data.id,
+              material_id: item.material_id,
+              quantity: item.quantity,
+            })),
+          ];
+
+          for (const itemsPayload of itemsAttempts) {
+            const { error: itemsError } = await supabase
+              .from('warehouse_issue_items')
+              .insert(itemsPayload as any[])
+              .select();
+
+            if (!itemsError) {
+              return data;
+            }
+            if (
+              !isColumnMissingError(itemsError) &&
+              !isRelationMissingError(itemsError) &&
+              !isPermissionDeniedError(itemsError)
+            ) {
+              throw itemsError;
+            }
+          }
+          return data;
+        }
+
+        if (
+          isColumnMissingError(error) ||
+          isRelationMissingError(error) ||
+          isPermissionDeniedError(error)
+        ) {
+          continue;
+        }
+        throw error;
+      }
+      return null;
+    };
+
+    // Попробуем уменьшить количество на складе
+    const materialIds = uniqueIds(normalizedItems.map((item) => item.material_id));
+    const stockMap: Record<string, any> = {};
+
+    try {
+      const { data: stockData, error: stockError } = await supabase
+        .from('warehouse')
+        .select('id, material_id, quantity_available, quantity, qty, id_material')
+.in('material_id', materialIds);
+
+      if (!stockError && stockData) {
+        for (const row of stockData) {
+          const materialId = resolveWarehouseMaterialId(row);
+          if (materialId && !stockMap[materialId]) {
+            stockMap[materialId] = row;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Не удалось загрузить остатки склада:', e);
     }
 
-    return issue;
+    // Уменьшаем остатки если есть записи
+    for (const item of normalizedItems) {
+      const row = stockMap[item.material_id];
+      if (!row) continue;
+
+      const currentQty =
+        typeof row.quantity_available === 'number'
+          ? row.quantity_available
+          : typeof row.quantity === 'number'
+            ? row.quantity
+            : typeof row.qty === 'number'
+              ? row.qty
+              : 0;
+      const nextQty = Math.max(0, currentQty - item.quantity);
+
+      const attempts = [
+        { quantity_available: nextQty, updated_at: new Date().toISOString() },
+        { quantity: nextQty, updated_at: new Date().toISOString() },
+      ];
+
+      for (const attempt of attempts) {
+        const { error } = await supabase
+          .from('warehouse')
+          .update(attempt)
+          .eq('id', row.id);
+
+        if (!error) break;
+        if (
+          isColumnMissingError(error) ||
+          isRelationMissingError(error) ||
+          isPermissionDeniedError(error)
+        ) {
+          continue;
+        }
+      }
+    }
+
+    // Пробуем warehouse_issues
+    let issue = null;
+    try {
+      issue = await tryWarehouseIssues();
+    } catch (e) {
+      console.warn('warehouse_issues недоступен:', e);
+    }
+
+    // Всегда сохраняем в materials_usage
+    try {
+      await saveToMaterialsUsage();
+    } catch (e) {
+      console.warn('materials_usage недоступен:', e);
+    }
+
+    return issue || {
+      id: `local-${Date.now()}`,
+      issued_at: normalizedIssuedAt,
+      issued_to: payload.issued_to,
+      purpose: payload.purpose || null,
+      task_avr_id: payload.task_avr_id || null,
+      items: normalizedItems,
+    };
   },
 
   getIssueHistory: async (limit = 100) => {
@@ -2962,9 +3159,17 @@ const getMessageAuthorId = (message: Record<string, any>) =>
 
 const getMessageChatId = (message: Record<string, any>) =>
   (message.chat_id as string | number | null | undefined) ??
+  (message.chat as string | number | null | undefined) ??
+  (message.channel_id as string | number | null | undefined) ??
+  (message.dialog_id as string | number | null | undefined) ??
+  (message.thread_id as string | number | null | undefined) ??
   (message.conversation_id as string | number | null | undefined) ??
+  (message.conversation as string | number | null | undefined) ??
   (message.room_id as string | number | null | undefined) ??
   (message.chatId as string | number | null | undefined) ??
+  (message.channelId as string | number | null | undefined) ??
+  (message.dialogId as string | number | null | undefined) ??
+  (message.threadId as string | number | null | undefined) ??
   (message.conversationId as string | number | null | undefined) ??
   (message.roomId as string | number | null | undefined) ??
   null;
@@ -3451,15 +3656,29 @@ export const chatApi = {
         supabase
           .from('messages')
           .select('*')
-          .eq('chat_id', chatId)
+          .eq('channel_id', chatId)
+          .order('created_at', { ascending: true })
           .limit(250),
       () =>
         supabase
           .from('messages')
           .select('*')
+          .eq('dialog_id', chatId)
           .order('created_at', { ascending: true })
-          .limit(500),
-      () => supabase.from('messages').select('*').limit(500),
+          .limit(250),
+      () =>
+        supabase
+          .from('messages')
+          .select('*')
+          .eq('thread_id', chatId)
+          .order('created_at', { ascending: true })
+          .limit(250),
+      () =>
+        supabase
+          .from('messages')
+          .select('*')
+          .eq('chat', chatId)
+          .limit(250),
     ];
 
     let messageRows: any[] = [];
@@ -4343,6 +4562,159 @@ const getAddressLongitude = (row: Record<string, unknown>) =>
 const countTruthyFields = (row: Record<string, unknown>, keys: string[]) =>
   keys.reduce((count, key) => (row[key] ? count + 1 : count), 0);
 
+type AddressEquipment = {
+  index: number;
+  id: string;
+  name: string;
+  source?: string;
+  district?: string;
+  site_id?: string;
+  brand?: string;
+  model?: string;
+  serial?: string;
+  inventory?: string;
+  raw?: Record<string, unknown>;
+};
+
+const toTrimmedString = (value: unknown) => {
+  if (typeof value !== 'string' && typeof value !== 'number') {
+    return '';
+  }
+  return String(value).trim();
+};
+
+const firstNonEmptyField = (row: Record<string, unknown>, keys: string[]) => {
+  for (const key of keys) {
+    const value = toTrimmedString(row[key]);
+    if (value) {
+      return value;
+    }
+  }
+  return '';
+};
+
+const dedupeAddressEquipment = (items: AddressEquipment[]) => {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = `${item.id}|${item.name}`.toLowerCase().trim();
+    if (!key || seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+};
+
+const buildAtssEquipment = (row: Record<string, unknown>, sourceId: string): AddressEquipment[] => {
+  const result: AddressEquipment[] = [];
+  for (let index = 1; index <= 7; index += 1) {
+    const suffix = index === 1 ? '' : String(index);
+    const id = firstNonEmptyField(row, [`id_sk${suffix}`, index === 1 ? 'id_sk1' : '']);
+    const name = firstNonEmptyField(row, [
+      `naimenovanie_sk${suffix}`,
+      index === 1 ? 'naimenovanie_sk1' : '',
+      'naimenovanie_sk',
+    ]);
+    const brand = firstNonEmptyField(row, [`marka_sk${suffix}`, `marka${suffix}`, index === 1 ? 'marka_sk' : '']);
+    const model = firstNonEmptyField(row, [`model_sk${suffix}`, `model${suffix}`, index === 1 ? 'model_sk' : '']);
+    const serial = firstNonEmptyField(row, [
+      `seriynyy_nomer${suffix}`,
+      `serial_number${suffix}`,
+      index === 1 ? 'seriynyy_nomer' : '',
+      index === 1 ? 'serial_number' : '',
+    ]);
+    const inventory = firstNonEmptyField(row, [
+      `inventarnyy_nomer${suffix}`,
+      `inventory_number${suffix}`,
+      index === 1 ? 'inventarnyy_nomer' : '',
+      index === 1 ? 'inventory_number' : '',
+    ]);
+
+    if (!id && !name) {
+      continue;
+    }
+
+    result.push({
+      index,
+      id,
+      name,
+      source: 'atss',
+      district: firstNonEmptyField(row, ['rayon', 'district']),
+      site_id: sourceId,
+      brand,
+      model,
+      serial,
+      inventory,
+      raw: row,
+    });
+  }
+
+  return dedupeAddressEquipment(result);
+};
+
+const buildKasipEquipment = (row: Record<string, unknown>, sourceId: string): AddressEquipment[] => {
+  const result: AddressEquipment[] = [];
+  for (let index = 1; index <= 7; index += 1) {
+    const suffix = String(index);
+    const atssSuffix = index === 1 ? '' : suffix;
+    const id = firstNonEmptyField(row, [
+      `id_konditsionera${suffix}`,
+      `id_sk${atssSuffix}`,
+      index === 1 ? 'id_sk1' : '',
+    ]);
+    const name = firstNonEmptyField(row, [
+      `naimenovanie_sk${atssSuffix}`,
+      `naimenovanie_konditsionera${suffix}`,
+      index === 1 ? 'naimenovanie_sk1' : '',
+      'naimenovanie_sk',
+    ]);
+    const brand = firstNonEmptyField(row, [
+      `marka_konditsionera${suffix}`,
+      `marka_sk${atssSuffix}`,
+      `marka${suffix}`,
+      index === 1 ? 'marka_sk' : '',
+    ]);
+    const model = firstNonEmptyField(row, [
+      `model_konditsionera${suffix}`,
+      `model_sk${atssSuffix}`,
+      `model${suffix}`,
+      index === 1 ? 'model_sk' : '',
+    ]);
+    const serial = firstNonEmptyField(row, [
+      `seriynyy_nomer${atssSuffix}`,
+      `serial_number${atssSuffix}`,
+      `serial_number${suffix}`,
+      index === 1 ? 'serial_number' : '',
+    ]);
+    const inventory = firstNonEmptyField(row, [
+      `inventarnyy_nomer${atssSuffix}`,
+      `inventory_number${atssSuffix}`,
+      `inventory_number${suffix}`,
+      index === 1 ? 'inventory_number' : '',
+    ]);
+
+    if (!id && !name) {
+      continue;
+    }
+
+    result.push({
+      index,
+      id,
+      name,
+      source: 'kasip',
+      district: firstNonEmptyField(row, ['ploshchadka', 'district']),
+      site_id: sourceId,
+      brand,
+      model,
+      serial,
+      inventory,
+      raw: row,
+    });
+  }
+
+  return dedupeAddressEquipment(result);
+};
+
 const normalizeJobAddressRows = (table: string, rows: any[]) => {
   if (table === 'atss_q1_2026') {
     return rows
@@ -4361,6 +4733,8 @@ const normalizeJobAddressRows = (table: string, rows: any[]) => {
               `${address}-${typed.rayon || ''}`
           ) || address;
 
+        const skItems = buildAtssEquipment(typed, sourceId);
+
         return {
           source: 'atss',
           source_id: sourceId,
@@ -4373,6 +4747,8 @@ const normalizeJobAddressRows = (table: string, rows: any[]) => {
             countTruthyFields(typed, ['id_sk', 'id_sk2', 'id_sk3', 'id_sk4', 'id_sk5', 'id_sk6']) || 1,
           lat: getAddressLatitude(typed),
           lng: getAddressLongitude(typed),
+          sk_items: skItems,
+          equipment_items: skItems,
           raw: typed,
         };
       })
@@ -4395,6 +4771,8 @@ const normalizeJobAddressRows = (table: string, rows: any[]) => {
             `${address}-${typed.ploshchadka || ''}`
         ) || address;
 
+      const skItems = buildKasipEquipment(typed, sourceId);
+
       return {
         source: 'kasip',
         source_id: sourceId,
@@ -4414,6 +4792,8 @@ const normalizeJobAddressRows = (table: string, rows: any[]) => {
           ]) || 1,
         lat: getAddressLatitude(typed),
         lng: getAddressLongitude(typed),
+        sk_items: skItems,
+        equipment_items: skItems,
         raw: typed,
       };
     })
@@ -4539,6 +4919,13 @@ const loadJobAddresses = async () => {
 
     const key = normalizeAddressKey(normalizedAddress);
     const normalizedId = String(item.source_id || item.id || key);
+    const candidateEquipment = dedupeAddressEquipment(
+      Array.isArray(item.sk_items)
+        ? (item.sk_items as AddressEquipment[])
+        : Array.isArray(item.equipment_items)
+          ? (item.equipment_items as AddressEquipment[])
+          : []
+    );
     const candidate = {
       ...item,
       source_id: normalizedId,
@@ -4547,6 +4934,8 @@ const loadJobAddresses = async () => {
       source_label: item.source === 'atss' ? 'АТСС' : 'КАСИП',
     };
 
+    candidate.sk_items = candidateEquipment;
+    candidate.equipment_items = candidateEquipment;
     candidate.source_label = toSourceLabel(candidate.source_label || candidate.source);
     const existing = uniqueByAddress.get(key);
     if (!existing) {
@@ -4565,6 +4954,12 @@ const loadJobAddresses = async () => {
       district: winner.district || existing.district,
       sk_name: winner.sk_name || existing.sk_name,
       servisnyy_id: winner.servisnyy_id || existing.servisnyy_id,
+      sk_items: dedupeAddressEquipment([
+        ...(Array.isArray(existing.sk_items) ? (existing.sk_items as AddressEquipment[]) : []),
+        ...(Array.isArray(existing.equipment_items) ? (existing.equipment_items as AddressEquipment[]) : []),
+        ...(Array.isArray(winner.sk_items) ? (winner.sk_items as AddressEquipment[]) : []),
+        ...(Array.isArray(winner.equipment_items) ? (winner.equipment_items as AddressEquipment[]) : []),
+      ]),
       source_label:
         mergedSourceLabels.length > 1
           ? 'АТСС/КАСИП'
@@ -4581,8 +4976,16 @@ const loadJobAddresses = async () => {
           : typeof existing.lng === 'number'
             ? existing.lng
             : null,
-      sk_count: Math.max(Number(existing.sk_count || 0), Number(winner.sk_count || 0)) || undefined,
+      sk_count:
+        Math.max(
+          Number(existing.sk_count || 0),
+          Number(winner.sk_count || 0),
+          Array.isArray(existing.sk_items) ? existing.sk_items.length : 0,
+          Array.isArray(winner.sk_items) ? winner.sk_items.length : 0
+        ) || undefined,
     };
+
+    merged.equipment_items = merged.sk_items;
 
     const normalizedSourceLabels = Array.from(
       new Set(

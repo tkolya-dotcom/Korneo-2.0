@@ -26,6 +26,7 @@ const C = {
   sub: '#8892a0',
   border: 'rgba(0, 217, 255, 0.15)',
   success: '#00FF88',
+  danger: '#FF3366',
 };
 
 const TYPES = [
@@ -35,9 +36,78 @@ const TYPES = [
 ] as const;
 
 type AddressItem = Record<string, any>;
+type EquipmentOption = {
+  key: string;
+  id: string;
+  name: string;
+  brand?: string;
+  model?: string;
+  serial?: string;
+  inventory?: string;
+};
 
 const errorText = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
+
+const getAddressEquipmentOptions = (item: AddressItem | null): EquipmentOption[] => {
+  if (!item) {
+    return [];
+  }
+
+  const rows = Array.isArray(item.sk_items)
+    ? item.sk_items
+    : Array.isArray(item.equipment_items)
+      ? item.equipment_items
+      : [];
+
+  const sourceRows = rows
+    .map((entry: Record<string, unknown>, index: number) => {
+      const id = String(entry.id || '').trim();
+      const name = String(entry.name || '').trim();
+      const key = String(entry.key || `${index + 1}|${id}|${name}`).trim();
+      if (!id && !name) {
+        return null;
+      }
+      return {
+        key,
+        id,
+        name: name || `СК ${index + 1}`,
+        brand: String(entry.brand || '').trim() || undefined,
+        model: String(entry.model || '').trim() || undefined,
+        serial: String(entry.serial || '').trim() || undefined,
+        inventory: String(entry.inventory || '').trim() || undefined,
+      } as EquipmentOption;
+    })
+    .filter(Boolean) as EquipmentOption[];
+
+  if (sourceRows.length === 0) {
+    const fallbackName = String(item.sk_name || '').trim();
+    if (fallbackName) {
+      sourceRows.push({
+        key: `fallback|${fallbackName}`,
+        id: '',
+        name: fallbackName,
+      });
+    }
+  }
+
+  const seen = new Set<string>();
+  return sourceRows
+    .filter((entry) => {
+      const dedupeKey = `${entry.id}|${entry.name}`.toLowerCase().trim();
+      if (!dedupeKey || seen.has(dedupeKey)) {
+        return false;
+      }
+      seen.add(dedupeKey);
+      return true;
+    })
+    .slice(0, 7);
+};
+
+const formatEquipmentOptionMeta = (item: EquipmentOption) =>
+  [item.brand, item.model, item.serial ? `S/N ${item.serial}` : null, item.inventory ? `INV ${item.inventory}` : null]
+    .filter(Boolean)
+    .join(' • ');
 
 export default function AvrCreateScreen() {
   const router = useRouter();
@@ -52,6 +122,11 @@ export default function AvrCreateScreen() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [saving, setSaving] = useState(false);
+  const [selectedOldEquipmentKeys, setSelectedOldEquipmentKeys] = useState<string[]>([]);
+  const [selectedNewEquipmentKeys, setSelectedNewEquipmentKeys] = useState<string[]>([]);
+  const [manualOldEquipment, setManualOldEquipment] = useState<Array<{ id: string; name: string }>>([]);
+  const [manualNewEquipment, setManualNewEquipment] = useState<Array<{ id: string; name: string }>>([]);
+  const [replacementReason, setReplacementReason] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -78,6 +153,105 @@ export default function AvrCreateScreen() {
     return searchAddressSuggestions(addresses, addressQuery, 20);
   }, [addressQuery, addresses]);
 
+  const addressEquipmentOptions = useMemo(
+    () => getAddressEquipmentOptions(selectedAddress),
+    [selectedAddress]
+  );
+
+  useEffect(() => {
+    if (!selectedAddress) {
+      setSelectedOldEquipmentKeys([]);
+      setSelectedNewEquipmentKeys([]);
+      return;
+    }
+    setSelectedOldEquipmentKeys(addressEquipmentOptions.map((option) => option.key));
+    setSelectedNewEquipmentKeys(addressEquipmentOptions.map((option) => option.key));
+    setManualOldEquipment([]);
+    setManualNewEquipment([]);
+  }, [selectedAddress, addressEquipmentOptions]);
+
+  const toggleOldEquipment = (key: string) => {
+    setSelectedOldEquipmentKeys((prev) => {
+      if (prev.includes(key)) {
+        return prev.filter((item) => item !== key);
+      }
+      const currentTotal = prev.length + manualOldEquipment.length;
+      if (currentTotal >= 7) {
+        Alert.alert(
+          '\u041e\u0448\u0438\u0431\u043a\u0430',
+          '\u041c\u0430\u043a\u0441\u0438\u043c\u0443\u043c 7 \u0435\u0434\u0438\u043d\u0438\u0446 \u043e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u044f'
+        );
+        return prev;
+      }
+      return [...prev, key];
+    });
+  };
+
+  const toggleNewEquipment = (key: string) => {
+    setSelectedNewEquipmentKeys((prev) => {
+      if (prev.includes(key)) {
+        return prev.filter((item) => item !== key);
+      }
+      const currentTotal = prev.length + manualNewEquipment.length;
+      if (currentTotal >= 7) {
+        Alert.alert(
+          '\u041e\u0448\u0438\u0431\u043a\u0430',
+          '\u041c\u0430\u043a\u0441\u0438\u043c\u0443\u043c 7 \u0435\u0434\u0438\u043d\u0438\u0446 \u043e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u044f'
+        );
+        return prev;
+      }
+      return [...prev, key];
+    });
+  };
+
+  const addManualOldEquipment = () => {
+    const selectedFromAddress = selectedOldEquipmentKeys.length;
+    if (selectedFromAddress + manualOldEquipment.length >= 7) {
+      Alert.alert(
+        '\u041e\u0448\u0438\u0431\u043a\u0430',
+        '\u041c\u0430\u043a\u0441\u0438\u043c\u0443\u043c 7 \u0435\u0434\u0438\u043d\u0438\u0446 \u043e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u044f'
+      );
+      return;
+    }
+    setManualOldEquipment((prev) => [...prev, { id: '', name: '' }]);
+  };
+
+  const addManualNewEquipment = () => {
+    const selectedFromAddress = selectedNewEquipmentKeys.length;
+    if (selectedFromAddress + manualNewEquipment.length >= 7) {
+      Alert.alert(
+        '\u041e\u0448\u0438\u0431\u043a\u0430',
+        '\u041c\u0430\u043a\u0441\u0438\u043c\u0443\u043c 7 \u0435\u0434\u0438\u043d\u0438\u0446 \u043e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u044f'
+      );
+      return;
+    }
+    setManualNewEquipment((prev) => [...prev, { id: '', name: '' }]);
+  };
+
+  const updateManualOldEquipment = (index: number, field: 'id' | 'name', value: string) => {
+    setManualOldEquipment((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
+  };
+
+  const updateManualNewEquipment = (index: number, field: 'id' | 'name', value: string) => {
+    setManualNewEquipment((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
+  };
+
+  const removeManualOldEquipment = (index: number) => {
+    setManualOldEquipment((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const removeManualNewEquipment = (index: number) => {
+    setManualNewEquipment((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const create = async () => {
     const normalizedTitle = title.trim();
     if (!normalizedTitle) {
@@ -90,14 +264,112 @@ export default function AvrCreateScreen() {
 
     try {
       setSaving(true);
-      const created = await avrApi.create({
+
+      // Prepare old equipment
+      const selectedOldFromAddress = addressEquipmentOptions
+        .filter((option) => selectedOldEquipmentKeys.includes(option.key))
+        .map((option) => ({
+          id: option.id.trim(),
+          name: option.name.trim(),
+          brand: option.brand,
+          model: option.model,
+          serial: option.serial,
+          inventory: option.inventory,
+        }));
+      const selectedManualOld = manualOldEquipment
+        .map((item) => ({
+          id: item.id.trim(),
+          name: item.name.trim(),
+          brand: undefined,
+          model: undefined,
+          serial: undefined,
+          inventory: undefined,
+        }))
+        .filter((item) => item.id || item.name);
+
+      // Prepare new equipment
+      const selectedNewFromAddress = addressEquipmentOptions
+        .filter((option) => selectedNewEquipmentKeys.includes(option.key))
+        .map((option) => ({
+          id: option.id.trim(),
+          name: option.name.trim(),
+          brand: option.brand,
+          model: option.model,
+          serial: option.serial,
+          inventory: option.inventory,
+        }));
+      const selectedManualNew = manualNewEquipment
+        .map((item) => ({
+          id: item.id.trim(),
+          name: item.name.trim(),
+          brand: undefined,
+          model: undefined,
+          serial: undefined,
+          inventory: undefined,
+        }))
+        .filter((item) => item.id || item.name);
+
+      // Dedupe old equipment
+      const dedupeOld = new Set<string>();
+      const oldEquipment = [...selectedOldFromAddress, ...selectedManualOld]
+        .filter((item) => item.id || item.name)
+        .filter((item) => {
+          const key = `${item.id}|${item.name}`.toLowerCase().trim();
+          if (!key || dedupeOld.has(key)) {
+            return false;
+          }
+          dedupeOld.add(key);
+          return true;
+        })
+        .slice(0, 7);
+
+      // Dedupe new equipment
+      const dedupeNew = new Set<string>();
+      const newEquipment = [...selectedNewFromAddress, ...selectedManualNew]
+        .filter((item) => item.id || item.name)
+        .filter((item) => {
+          const key = `${item.id}|${item.name}`.toLowerCase().trim();
+          if (!key || dedupeNew.has(key)) {
+            return false;
+          }
+          dedupeNew.add(key);
+          return true;
+        })
+        .slice(0, 7);
+
+      const payload: Record<string, unknown> = {
         title: normalizedTitle,
         type,
         description: description.trim() || null,
         address_text: normalizeAddressForDisplay(addressQuery) || null,
         date_from: dateFrom.trim() || null,
         date_to: dateTo.trim() || null,
+        replacement_reason: replacementReason.trim() || null,
+      };
+
+      // Add old equipment fields
+      oldEquipment.forEach((eq, i) => {
+        const prefix = i === 0 ? 'old_' : `old_${i + 1}_`;
+        if (eq.id) payload[`${prefix}id_sk`] = eq.id;
+        if (eq.name) payload[`${prefix}naimenovanie_sk`] = eq.name;
+        if (eq.brand) payload[`${prefix}marka_sk`] = eq.brand;
+        if (eq.model) payload[`${prefix}model_sk`] = eq.model;
+        if (eq.serial) payload[`${prefix}seriynyy_nomer`] = eq.serial;
+        if (eq.inventory) payload[`${prefix}inventarnyy_nomer`] = eq.inventory;
       });
+
+      // Add new equipment fields
+      newEquipment.forEach((eq, i) => {
+        const prefix = i === 0 ? 'new_' : `new_${i + 1}_`;
+        if (eq.id) payload[`${prefix}id_sk`] = eq.id;
+        if (eq.name) payload[`${prefix}naimenovanie_sk`] = eq.name;
+        if (eq.brand) payload[`${prefix}marka_sk`] = eq.brand;
+        if (eq.model) payload[`${prefix}model_sk`] = eq.model;
+        if (eq.serial) payload[`${prefix}seriynyy_nomer`] = eq.serial;
+        if (eq.inventory) payload[`${prefix}inventarnyy_nomer`] = eq.inventory;
+      });
+
+      const created = await avrApi.create(payload);
 
       Alert.alert('\u0413\u043e\u0442\u043e\u0432\u043e', '\u0417\u0430\u044f\u0432\u043a\u0430 \u0441\u043e\u0437\u0434\u0430\u043d\u0430');
       router.replace({
@@ -231,6 +503,153 @@ export default function AvrCreateScreen() {
         multiline
       />
 
+      {/* OLD EQUIPMENT SECTION */}
+      <View style={s.sectionHeader}>
+        <Text style={s.label}>{'\u0414\u0435\u043c\u043e\u043d\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u043d\u043e\u0435 \u043e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u0435 (\u0421\u0442\u0430\u0440\u043e\u0435 \u0421\u041a)'}</Text>
+        <TouchableOpacity onPress={addManualOldEquipment}>
+          <Text style={s.addBtn}>{`+ \u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c (${selectedOldEquipmentKeys.length + manualOldEquipment.length}/7)`}</Text>
+        </TouchableOpacity>
+      </View>
+
+      {addressEquipmentOptions.length > 0 ? (
+        <View style={s.equipmentSourceCard}>
+          <Text style={s.equipmentSourceTitle}>
+            {'\u041e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u0435 \u0438\u0437 \u0432\u044b\u0431\u0440\u0430\u043d\u043d\u043e\u0433\u043e \u0430\u0434\u0440\u0435\u0441\u0430'}
+          </Text>
+          {addressEquipmentOptions.map((option) => {
+            const checked = selectedOldEquipmentKeys.includes(option.key);
+            const optionMeta = formatEquipmentOptionMeta(option);
+            return (
+              <TouchableOpacity
+                key={option.key}
+                style={s.checkboxRow}
+                onPress={() => toggleOldEquipment(option.key)}
+              >
+                <View style={[s.checkbox, checked && s.checkboxChecked]}>
+                  <Text style={s.checkboxMark}>{checked ? '\u2713' : ''}</Text>
+                </View>
+                <View style={s.checkboxTextWrap}>
+                  <Text style={s.checkboxTitle} numberOfLines={2}>
+                    {option.name}
+                    {option.id ? ` (ID ${option.id})` : ''}
+                  </Text>
+                  {optionMeta ? (
+                    <Text style={s.checkboxMeta} numberOfLines={2}>
+                      {optionMeta}
+                    </Text>
+                  ) : null}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ) : (
+        <Text style={s.noEquipmentHint}>
+          {'\u041f\u043e \u0430\u0434\u0440\u0435\u0441\u0443 \u0441\u043f\u0438\u0441\u043e\u043a \u0421\u041a \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d. \u041c\u043e\u0436\u043d\u043e \u0434\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u0432\u0440\u0443\u0447\u043d\u0443\u044e.'}
+        </Text>
+      )}
+
+      {manualOldEquipment.map((eq, index) => (
+        <View key={`old-${index}-${eq.id}-${eq.name}`} style={s.equipmentRow}>
+          <TextInput
+            style={[s.input, { flex: 1, marginBottom: 0 }]}
+            placeholder={`ID \u0421\u041a ${index + 1}`}
+            placeholderTextColor={C.sub}
+            value={eq.id}
+            onChangeText={(v) => updateManualOldEquipment(index, 'id', v)}
+          />
+          <TextInput
+            style={[s.input, { flex: 2, marginBottom: 0 }]}
+            placeholder={'\u041d\u0430\u0438\u043c\u0435\u043d\u043e\u0432\u0430\u043d\u0438\u0435'}
+            placeholderTextColor={C.sub}
+            value={eq.name}
+            onChangeText={(v) => updateManualOldEquipment(index, 'name', v)}
+          />
+          <TouchableOpacity onPress={() => removeManualOldEquipment(index)} style={s.removeBtn}>
+            <Text style={s.removeBtnText}>{'\u2715'}</Text>
+          </TouchableOpacity>
+        </View>
+      ))}
+
+      {/* NEW EQUIPMENT SECTION */}
+      <View style={s.sectionHeader}>
+        <Text style={s.label}>{'\u0423\u0441\u0442\u0430\u043d\u043e\u0432\u043b\u0435\u043d\u043d\u043e\u0435 \u043e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u0435 (\u041d\u043e\u0432\u043e\u0435 \u0421\u041a)'}</Text>
+        <TouchableOpacity onPress={addManualNewEquipment}>
+          <Text style={s.addBtn}>{`+ \u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c (${selectedNewEquipmentKeys.length + manualNewEquipment.length}/7)`}</Text>
+        </TouchableOpacity>
+      </View>
+
+      {addressEquipmentOptions.length > 0 ? (
+        <View style={s.equipmentSourceCard}>
+          <Text style={s.equipmentSourceTitle}>
+            {'\u041e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u0435 \u0438\u0437 \u0432\u044b\u0431\u0440\u0430\u043d\u043d\u043e\u0433\u043e \u0430\u0434\u0440\u0435\u0441\u0430'}
+          </Text>
+          {addressEquipmentOptions.map((option) => {
+            const checked = selectedNewEquipmentKeys.includes(option.key);
+            const optionMeta = formatEquipmentOptionMeta(option);
+            return (
+              <TouchableOpacity
+                key={option.key}
+                style={s.checkboxRow}
+                onPress={() => toggleNewEquipment(option.key)}
+              >
+                <View style={[s.checkbox, checked && s.checkboxChecked]}>
+                  <Text style={s.checkboxMark}>{checked ? '\u2713' : ''}</Text>
+                </View>
+                <View style={s.checkboxTextWrap}>
+                  <Text style={s.checkboxTitle} numberOfLines={2}>
+                    {option.name}
+                    {option.id ? ` (ID ${option.id})` : ''}
+                  </Text>
+                  {optionMeta ? (
+                    <Text style={s.checkboxMeta} numberOfLines={2}>
+                      {optionMeta}
+                    </Text>
+                  ) : null}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ) : (
+        <Text style={s.noEquipmentHint}>
+          {'\u041f\u043e \u0430\u0434\u0440\u0435\u0441\u0443 \u0441\u043f\u0438\u0441\u043e\u043a \u0421\u041a \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d. \u041c\u043e\u0436\u043d\u043e \u0434\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u0432\u0440\u0443\u0447\u043d\u0443\u044e.'}
+        </Text>
+      )}
+
+      {manualNewEquipment.map((eq, index) => (
+        <View key={`new-${index}-${eq.id}-${eq.name}`} style={s.equipmentRow}>
+          <TextInput
+            style={[s.input, { flex: 1, marginBottom: 0 }]}
+            placeholder={`ID \u0421\u041a ${index + 1}`}
+            placeholderTextColor={C.sub}
+            value={eq.id}
+            onChangeText={(v) => updateManualNewEquipment(index, 'id', v)}
+          />
+          <TextInput
+            style={[s.input, { flex: 2, marginBottom: 0 }]}
+            placeholder={'\u041d\u0430\u0438\u043c\u0435\u043d\u043e\u0432\u0430\u043d\u0438\u0435'}
+            placeholderTextColor={C.sub}
+            value={eq.name}
+            onChangeText={(v) => updateManualNewEquipment(index, 'name', v)}
+          />
+          <TouchableOpacity onPress={() => removeManualNewEquipment(index)} style={s.removeBtn}>
+            <Text style={s.removeBtnText}>{'\u2715'}</Text>
+          </TouchableOpacity>
+        </View>
+      ))}
+
+      {/* REPLACEMENT REASON */}
+      <Text style={s.label}>{'\u041f\u0440\u0438\u0447\u0438\u043d\u0430 \u0437\u0430\u043c\u0435\u043d\u044b'}</Text>
+      <TextInput
+        value={replacementReason}
+        onChangeText={setReplacementReason}
+        style={[s.input, s.multiline]}
+        placeholder={'\u0423\u043a\u0430\u0436\u0438\u0442\u0435 \u043f\u0440\u0438\u0447\u0438\u043d\u0443 \u0437\u0430\u043c\u0435\u043d\u044b \u043e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u044f'}
+        placeholderTextColor={C.sub}
+        multiline
+      />
+
       <TouchableOpacity style={[s.submitBtn, saving && s.submitDisabled]} onPress={() => void create()} disabled={saving}>
         {saving ? (
           <ActivityIndicator color="#04120d" />
@@ -297,6 +716,66 @@ const s = StyleSheet.create({
   },
   selectedHintText: { color: C.accent, fontSize: 12, fontWeight: '600' },
   selectedHintSub: { color: C.sub, fontSize: 11, marginTop: 4 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
+  addBtn: { color: C.success, fontSize: 13, fontWeight: '600' },
+  equipmentSourceCard: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: C.border,
+    backgroundColor: C.card,
+    marginBottom: 12,
+    paddingVertical: 6,
+  },
+  equipmentSourceTitle: {
+    color: C.sub,
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  checkboxRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(255,255,255,0.08)',
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: C.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  checkboxChecked: {
+    borderColor: C.accent,
+    backgroundColor: 'rgba(0,217,255,0.18)',
+  },
+  checkboxMark: {
+    color: C.accent,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 14,
+  },
+  checkboxTextWrap: { flex: 1 },
+  checkboxTitle: { color: C.text, fontSize: 13, fontWeight: '600' },
+  checkboxMeta: { color: C.sub, fontSize: 11, marginTop: 3 },
+  noEquipmentHint: {
+    color: C.sub,
+    fontSize: 12,
+    marginBottom: 10,
+    lineHeight: 18,
+  },
+  equipmentRow: { flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 8 },
+  removeBtn: { padding: 10 },
+  removeBtnText: { color: C.danger, fontSize: 16 },
   submitBtn: {
     marginTop: 18,
     backgroundColor: C.success,

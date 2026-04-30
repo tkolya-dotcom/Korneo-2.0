@@ -31,6 +31,11 @@ const statusColor = (status: string) =>
     pending: C.yellow,
     approved: C.green,
     rejected: C.red,
+    in_order: C.yellow,
+    ready_for_receipt: C.accent,
+    received: C.green,
+    done: C.green,
+    postponed: C.sub,
     completed: C.accent,
     cancelled: C.sub,
   }[status] || C.sub);
@@ -200,4 +205,3 @@ const s = StyleSheet.create({
   actionBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
   actionBtnText: { color: '#fff', fontSize: 13, fontWeight: '600' },
 });
-
