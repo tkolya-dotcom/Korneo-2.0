@@ -1,6 +1,6 @@
 {
-  "versionCode": 40,
-  "versionName": "1.40",
-  "downloadUrl": "https://github.com/tkolya-dotcom/Korneo/releases/download/v40/app-debug.apk",
-  "releaseNotes": "Обновление v1.40"
+  "versionCode": 200,
+  "versionName": "2.0",
+  "downloadUrl": "https://github.com/tkolya-dotcom/Korneo/releases/download/v2.0/korneo-web-v2.0.zip",
+  "releaseNotes": "Major release v2.0"
 }
